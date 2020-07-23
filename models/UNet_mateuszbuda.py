@@ -7,11 +7,12 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
-from loss import DiceLoss
+from loss import DiceLoss2
 
 class UNet_m(pl.LightningModule):
 
@@ -53,7 +54,7 @@ class UNet_m(pl.LightningModule):
         )
 
         # training params
-        self.loss = DiceLoss()
+        self.loss = DiceLoss2()
         self.lr = lr
         self.datasets = datasets
         self.batch_size = batch_size
@@ -125,9 +126,7 @@ class UNet_m(pl.LightningModule):
         # loss dim is [batch, 1, img_x, img_y]
         # need to get rid of the second dimension so
         # size matches with mask
-        #loss = self.loss(y_hat[:,0,:,:], masks)
-        w = torch.tensor(self.class_weights, device=self.device)
-        loss = F.cross_entropy(y_hat, masks, w)
+        loss = self.loss(y_hat[:,0,:,:], masks)
 
         # Logs
         #tensorboard_logs = {'train_loss': loss}
@@ -141,9 +140,7 @@ class UNet_m(pl.LightningModule):
         # loss dim is [batch, 1, img_x, img_y]
         # need to get rid of the second dimension so
         # size matches with mask
-        #loss = self.loss(y_hat[:,0,:,:], masks)
-        w = torch.tensor(self.class_weights, device=self.device)
-        loss = F.cross_entropy(y_hat, masks, w)
+        loss = self.loss(y_hat[:,0,:,:], masks)
 
         # Logs
         #tensorboard_logs = {'val_loss': loss}
@@ -162,9 +159,7 @@ class UNet_m(pl.LightningModule):
         # loss dim is [batch, 1, img_x, img_y]
         # need to get rid of the second dimension so
         # size matches with mask
-        #loss = self.loss(y_hat[:,0,:,:], masks)
-        w = torch.tensor(self.class_weights, device=self.device)
-        loss = F.cross_entropy(y_hat, masks, w)
+        loss = self.loss(y_hat[:,0,:,:], masks)
 
         # Logs
         #tensorboard_logs = {'val_loss': loss}
