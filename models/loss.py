@@ -16,3 +16,25 @@ class DiceLoss(nn.Module):
             y_pred.sum() + y_true.sum() + self.smooth
         )
         return 1. - dsc
+
+
+
+#https://www.kaggle.com/bigironsphere/loss-function-library-keras-pytorch
+class DiceLoss2(nn.Module):
+    def __init__(self, weight=None, size_average=True):
+        super(DiceLoss2, self).__init__()
+
+    def forward(self, inputs, targets, smooth=1):
+        
+        #comment out if your model contains a sigmoid or equivalent activation layer
+        #inputs = F.sigmoid(inputs)       
+        
+        #flatten label and prediction tensors
+        inputs = inputs.view(-1)
+        targets = targets.view(-1)
+        
+        intersection = (inputs * targets).sum()                            
+        dice = (2.*intersection + smooth)/(inputs.sum() + targets.sum() + smooth)  
+        
+        return 1 - dice
+

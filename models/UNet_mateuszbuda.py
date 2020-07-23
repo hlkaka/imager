@@ -16,7 +16,7 @@ from loss import DiceLoss
 class UNet_m(pl.LightningModule):
 
     def __init__(self, datasets, in_channels=3, out_channels=1,
-                 init_features=32, lr=0.0001, batch_size = 32, dl_workers = 8):
+                 init_features=32, lr=0.0001, batch_size = 32, dl_workers = 8, class_weights :list = [1, 5.725]):
         super(UNet_m, self).__init__()
 
         features = init_features
@@ -58,6 +58,7 @@ class UNet_m(pl.LightningModule):
         self.datasets = datasets
         self.batch_size = batch_size
         self.dl_workers = dl_workers
+        self.class_weights = class_weights
 
     def forward(self, x):
         x = x.permute(0, 3, 1, 2)
@@ -124,7 +125,9 @@ class UNet_m(pl.LightningModule):
         # loss dim is [batch, 1, img_x, img_y]
         # need to get rid of the second dimension so
         # size matches with mask
-        loss = self.loss(y_hat[:,0,:,:], masks)
+        #loss = self.loss(y_hat[:,0,:,:], masks)
+        w = torch.tensor(self.class_weights, device=self.device)
+        loss = F.cross_entropy(y_hat, masks, w)
 
         # Logs
         #tensorboard_logs = {'train_loss': loss}
@@ -138,7 +141,10 @@ class UNet_m(pl.LightningModule):
         # loss dim is [batch, 1, img_x, img_y]
         # need to get rid of the second dimension so
         # size matches with mask
-        loss = self.loss(y_hat[:,0,:,:], masks)
+        #loss = self.loss(y_hat[:,0,:,:], masks)
+        w = torch.tensor(self.class_weights, device=self.device)
+        loss = F.cross_entropy(y_hat, masks, w)
+
         # Logs
         #tensorboard_logs = {'val_loss': loss}
         return {'val_loss': loss} #, 'log': tensorboard_logs}
@@ -156,7 +162,9 @@ class UNet_m(pl.LightningModule):
         # loss dim is [batch, 1, img_x, img_y]
         # need to get rid of the second dimension so
         # size matches with mask
-        loss = self.loss(y_hat[:,0,:,:], masks)
+        #loss = self.loss(y_hat[:,0,:,:], masks)
+        w = torch.tensor(self.class_weights, device=self.device)
+        loss = F.cross_entropy(y_hat, masks, w)
 
         # Logs
         #tensorboard_logs = {'val_loss': loss}
