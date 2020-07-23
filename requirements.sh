@@ -1,5 +1,5 @@
 apt update
-apt install wget htop vim screen python3-pip
+apt install wget htop vim screen python3-pip unzip
 
 python3 -m pip install --user --upgrade pip
 python3 -m pip install --user virtualenv
