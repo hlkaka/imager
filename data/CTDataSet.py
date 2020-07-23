@@ -1,6 +1,5 @@
 from torch.utils.data import Dataset
 import glob
-import nibabel as nb
 import os
 import SimpleITK as sitk
 import numpy as np
