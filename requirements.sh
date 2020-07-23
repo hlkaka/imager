@@ -1,8 +1,8 @@
 apt update
-apt install wget htop vim screen python3-pip unzip
+apt install wget htop vim screen python3-pip unzip libglib2.0-0
 
-python3 -m pip install --user --upgrade pip
-python3 -m pip install --user virtualenv
+pip3 install --upgrade pip
+pip3 install virtualenv
 
 mkdir env
 python3 -m venv env
