@@ -9,15 +9,16 @@ class UNet(pl.LightningModule):
 
     def __init__(self, datasets, backbone :str = 'resnet34', encoder_weights :str = 'imagenet',
                  classes :int = 2, activation :str = 'softmax', batch_size :int = 32, class_weights :list = [0.1487, 0.8513],
-                 lr = 0.0001):
+                 lr = 0.0001, dl_workers = 8):
         super().__init__()
 
         self.smp_unet = smp.Unet(backbone, encoder_weights = encoder_weights, classes = classes, activation = activation)
         self.pre_processing_fn = get_preprocessing_fn(backbone, encoder_weights)
         self.datasets = datasets
         self.batch_size = batch_size
-        self.class_weights = torch.tensor(class_weights)
+        self.class_weights = class_weights
         self.lr = lr
+        self.dl_workers = dl_workers
 
     def forward(self, x):
         x = x.permute(0, 3, 1, 2)
@@ -44,9 +45,10 @@ class UNet(pl.LightningModule):
         images, masks, _, _ = batch
 
         y_hat = self(images)
-        loss = F.cross_entropy(y_hat, masks, weight=self.class_weights)
+        w = torch.tensor(self.class_weights, device=self.device)
+        loss = F.cross_entropy(y_hat, masks, w)
 
-        dice = self.dice_metric(y_hat, masks)
+        dice = pl.metrics.functional.dice_score(y_hat, masks) #self.dice_metric(y_hat, masks)
 
         # Logs
         #tensorboard_logs = {'train_loss': loss}
@@ -56,10 +58,11 @@ class UNet(pl.LightningModule):
         images, masks, _, _ = batch
 
         y_hat = self(images)
-        loss = F.cross_entropy(y_hat, masks, weight=self.class_weights)
+        w = torch.tensor(self.class_weights, device=self.device)
+        loss = F.cross_entropy(y_hat, masks, w)
 
-        dice = self.dice_metric(y_hat, masks)
-        
+        dice = pl.metrics.functional.dice_score(y_hat, masks) #self.dice_metric(y_hat, masks)
+
         # Logs
         #tensorboard_logs = {'val_loss': loss}
         return {'val_loss': loss, 'val_dice': dice} #, 'log': tensorboard_logs}
@@ -75,10 +78,11 @@ class UNet(pl.LightningModule):
         images, masks, _, _ = batch
 
         y_hat = self(images)
-        loss = F.cross_entropy(y_hat, masks, weight=self.class_weights)
+        w = torch.tensor(self.class_weights, device=self.device)
+        loss = F.cross_entropy(y_hat, masks, w)
 
-        dice = self.dice_metric(y_hat, masks)
-        
+        dice = pl.metrics.functional.dice_score(y_hat, masks) #self.dice_metric(y_hat, masks)
+
         # Logs
         #tensorboard_logs = {'val_loss': loss}
         return {'test_loss': loss, 'test_dice': dice} #, 'log': tensorboard_logs}
@@ -91,13 +95,13 @@ class UNet(pl.LightningModule):
         return {'test_loss': test_loss_mean, 'test_dice': test_dice_mean}
 
     def train_dataloader(self):
-        return DataLoader(self.datasets['train'], batch_size=self.batch_size, num_workers = 4, shuffle=True)
+        return DataLoader(self.datasets['train'], batch_size=self.batch_size, num_workers = self.dl_workers, shuffle=True)
 
     def val_dataloader(self):
-        return DataLoader(self.datasets['val'], batch_size=self.batch_size, num_workers = 4, shuffle=False)
+        return DataLoader(self.datasets['val'], batch_size=self.batch_size, num_workers = self.dl_workers, shuffle=False)
 
     def test_dataloader(self):
-        return DataLoader(self.datasets['test'], batch_size=self.batch_size, num_workers = 4, shuffle=False)
+        return DataLoader(self.datasets['test'], batch_size=self.batch_size, num_workers = self.dl_workers, shuffle=False)
 
     def configure_optimizers(self):
         return torch.optim.Adam(params = self.smp_unet.parameters(), lr=self.lr)
