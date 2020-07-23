@@ -16,7 +16,7 @@ class UNet(pl.LightningModule):
         self.pre_processing_fn = get_preprocessing_fn(backbone, encoder_weights)
         self.datasets = datasets
         self.batch_size = batch_size
-        self.class_weights = torch.tensor(class_weights, device=self.device)
+        self.class_weights = torch.tensor(class_weights)
         self.lr = lr
 
     def forward(self, x):

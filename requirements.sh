@@ -9,4 +9,4 @@ python3 -m venv env
 
 source env/bin/activate
 
-pip3 install -U tqdm segmentation-models-pytorch pytorch-lightning albumentations
+pip3 install -U tqdm segmentation-models-pytorch pytorch-lightning albumentations SimpleITK
