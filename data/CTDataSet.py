@@ -41,13 +41,13 @@ class CTDicomSlices(Dataset):
             slices = self.preprocessing(slices)
 
         if self.transform is not None:
-            slices = self.transform(slices)
+            slices = self.transform(image=slices)['image']
 
         if self.img_and_mask_transform is not None:
             sample = self.img_and_mask_transform(image=slices, mask=mask)
             slices, mask = sample['image'], sample['mask']
 
-        return slices, mask.astype("float32"), img_path, slice_n
+        return slices.astype("float32"), mask.astype("float32"), img_path, slice_n
 
     def get_mask(self, img_path :str, slice_n :int):
         dicoms_dir = os.path.dirname(img_path)

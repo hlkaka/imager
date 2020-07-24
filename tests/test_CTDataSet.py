@@ -36,12 +36,24 @@ if __name__ == '__main__':
     dataset = '/home/hussam/organized_dataset_2/'
     dcm_list = CTDicomSlices.generate_file_list(dataset)
 
-    trfm = transforms.Compose([Window(50, 200), Imagify(50, 200)])
-    msk_trfm = A.Compose([A.Resize(256, 256)],
+    prep = transforms.Compose([Window(50, 200), Imagify(50, 200)])
+    
+    _img_trfm = [A.GaussNoise()]
+                 #A.RandomBrightnessContrast()]
+
+    img_trfm = A.Compose(_img_trfm)
+
+    _msk_trfm = [A.Resize(256, 256),
+                 A.ElasticTransform(alpha_affine=10, p=0.8),
+                 A.HorizontalFlip(),
+                 A.OpticalDistortion(),
+                 A.Rotate(limit=30, p=1)]
+
+    msk_trfm = A.Compose(_msk_trfm,
             additional_targets={"image1": 'image', "mask1": 'mask'})
     #prep = get_preprocessing_fn('resnet34', pretrained='imagenet')
 
-    ctds = CTDicomSlices(dcm_list, shuffle=True, transform=trfm, img_and_mask_transform = msk_trfm)#, preprocessing = prep)
+    ctds = CTDicomSlices(dcm_list, shuffle=True, preprocessing=prep, transform = img_trfm, img_and_mask_transform = msk_trfm)#, preprocessing = prep)
 
     for slices, mask, img_path, slice_n in ctds:
         pt_id = os.path.dirname(os.path.dirname(img_path))

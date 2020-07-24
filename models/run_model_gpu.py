@@ -25,7 +25,7 @@ from UNet_mateuszbuda import UNet_m
 # Create model
 # Run model
 
-dataset = "../organized_dataset"
+dataset = "../organized_dataset_2"
 model_output_parent = "../model_runs"
 
 new_ds_split = True
@@ -52,9 +52,6 @@ lr = 0.0001
 
 n_epochs = 2
 
-def to_float(x, **kwargs):
-    return x.astype('float32')
-
 def get_time():
     now = datetime.now()
     return now.strftime("%Y-%m-%d-%H:%M:%S")
@@ -71,27 +68,34 @@ if __name__ == '__main__':
     os.makedirs(model_dir, exist_ok=True)
     dsm.save_lists(model_dir)
 
-    #preprocess_fn = get_preprocessing_fn(backbone, pretrained=encoder_weights)
-
-    _image_transforms = [
+    _prep = [
         Window(WL, WW),
         Imagify(WL, WW),
-#        preprocess_fn,
-        to_float,
+        #preprocess_fn,
     ]
 
-    _img_mask_tsfm = A.Compose([A.Resize(img_size, img_size)],
-            additional_targets={"image1": 'image', "mask1": 'mask'})
+    _img_tsfm = [A.GaussNoise()]
 
-    image_transforms = transforms.Compose(_image_transforms)
-    img_mask_tsfm = A.Compose(_img_mask_tsfm)
+    _img_mask_tsfm = [A.Resize(img_size, img_size),
+                      A.ElasticTransform(alpha_affine=10),
+                      A.HorizontalFlip(),
+                      A.OpticalDistortion(),
+                      A.Rotate(limit=30)]
+
+    val_img_mask_tsfm = A.Compose([A.Resize(img_size, img_size)],
+                        additional_targets={"image1": 'image', "mask1": 'mask'})
+
+    prep = transforms.Compose(_prep)
+    img_tsfm = A.Compose(_img_tsfm)
+    img_mask_tsfm = A.Compose(_img_mask_tsfm,
+            additional_targets={"image1": 'image', "mask1": 'mask'})
 
     # create ds
     train_dicoms, val_dicoms, test_dicoms = dsm.get_dicoms()
     datasets = {}
-    datasets['train'] = CTDicomSlices(train_dicoms, preprocessing = image_transforms, img_and_mask_transform = img_mask_tsfm)
-    datasets['val'] = CTDicomSlices(val_dicoms, preprocessing = image_transforms, img_and_mask_transform = img_mask_tsfm)
-    datasets['test'] = CTDicomSlices(test_dicoms, preprocessing = image_transforms, img_and_mask_transform = img_mask_tsfm)
+    datasets['train'] = CTDicomSlices(train_dicoms, preprocessing = prep, transform = img_tsfm, img_and_mask_transform = img_mask_tsfm)
+    datasets['val'] = CTDicomSlices(val_dicoms, preprocessing = prep, img_and_mask_transform = val_img_mask_tsfm)
+    datasets['test'] = CTDicomSlices(test_dicoms, preprocessing = prep, img_and_mask_transform = val_img_mask_tsfm)
 
     # create model
     #model = UNet(datasets, backbone=backbone, encoder_weights=encoder_weights, batch_size=batch_size, lr=lr, classes=2)

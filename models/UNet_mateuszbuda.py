@@ -148,8 +148,9 @@ class UNet_m(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-
-        return {'val_loss': val_loss_mean}
+        d = {'val_loss': val_loss_mean}
+        print(d)
+        return d
 
     def test_step(self, batch, batch_nb):
         images, masks, _, _ = batch
