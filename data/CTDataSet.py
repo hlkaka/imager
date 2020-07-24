@@ -47,7 +47,7 @@ class CTDicomSlices(Dataset):
             sample = self.img_and_mask_transform(image=slices, mask=mask)
             slices, mask = sample['image'], sample['mask']
 
-        return slices, mask.astype("int64"), img_path, slice_n
+        return slices, mask.astype("float32"), img_path, slice_n
 
     def get_mask(self, img_path :str, slice_n :int):
         dicoms_dir = os.path.dirname(img_path)
@@ -66,10 +66,9 @@ class CTDicomSlices(Dataset):
             else:
                 aggregate_mask = mask_comp
 
-        # The way masks were converted from dcm to nii to png resulted in
-        # a rotation and flip. Need to reverse those
-        aggregate_mask = np.rot90(aggregate_mask)
-        aggregate_mask = np.flipud(aggregate_mask)
+        # No longer required. Rotation is done in dcm creation.
+        #aggregate_mask = np.rot90(aggregate_mask)
+        #aggregate_mask = np.flipud(aggregate_mask)
 
         return aggregate_mask
 

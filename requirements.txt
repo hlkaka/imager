@@ -1,0 +1,4 @@
+pytorch
+segmentation-models-pytorch
+pytorch-lightning
+albumentations

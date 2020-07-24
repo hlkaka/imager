@@ -6,7 +6,7 @@ import glob
 import os
 import tqdm
 
-organized_dataset = "/home/hussam/organized_dataset/"
+organized_dataset = "/home/hussam/organized_dataset_2/"
 
 # pt_id: dcm_slices, GTVps, GTVns, n slices == n all masks
 data = {}

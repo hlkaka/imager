@@ -8,12 +8,11 @@ from torch.utils.data import DataLoader
 class UNet(pl.LightningModule):
 
     def __init__(self, datasets, backbone :str = 'resnet34', encoder_weights :str = 'imagenet',
-                 classes :int = 2, activation :str = 'softmax', batch_size :int = 32, class_weights :list = [0.1487, 0.8513],
+                 classes :int = 2, activation :str = 'softmax', batch_size :int = 32, class_weights :list = [1, 5.725],
                  lr = 0.0001, dl_workers = 8):
         super().__init__()
 
         self.smp_unet = smp.Unet(backbone, encoder_weights = encoder_weights, classes = classes, activation = activation)
-        self.pre_processing_fn = get_preprocessing_fn(backbone, encoder_weights)
         self.datasets = datasets
         self.batch_size = batch_size
         self.class_weights = class_weights

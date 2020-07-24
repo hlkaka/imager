@@ -11,6 +11,7 @@ import os
 import tqdm
 import pydicom
 from shutil import copyfile
+import SimpleITK as sitk
 
 def save_stack(stack, target_f):
     '''
@@ -19,14 +20,37 @@ def save_stack(stack, target_f):
     # Move slice axis to first
     stack = np.moveaxis(stack, -1, 0)
 
+    # Fix orientation
+    stack = np.rot90(stack, axes=(1, 2))
+
     os.makedirs(target_f, exist_ok=True)
 
     # Save slice by slice
     for i in range(stack.shape[0]):
         # Dicoms are 1-based indices so add 1
-        cv2.imwrite(target_f + "/" + str(i + 1) + ".png", stack[i, :, :] * 255)
+        cv2.imwrite(target_f + "/" + str(i + 1) + ".png", np.flipud(stack[i, :, :]) * 255)
 
-def save_group(pt_path, nii_file, target_name):
+def save_dicom_stack(stack, target_f):
+    '''
+    Saves a stack of DICOMs reconstructed from the nii file
+    '''
+    # Move slice axis to first
+    stack = np.moveaxis(stack, -1, 0).astype("int16")
+
+    # Fix orientation
+    stack = np.rot90(stack, axes=(1, 2))
+
+    os.makedirs(target_f, exist_ok=True)
+
+    # Save slice by slice
+    for i in range(stack.shape[0]):
+        # Dicoms are 1-based indices so add 1
+        np_img = np.flipud(stack[i, :, :])
+
+        img = sitk.GetImageFromArray(np_img)
+        sitk.WriteImage(img, "{}/{}.dcm".format(target_f, i + 1))
+
+def save_group(pt_path, nii_file, target_name, dcm = False):
     '''
     Saves all masks of a group for a given patient
     A group is either GTVp (primary) or GTVn (nodes)
@@ -40,7 +64,10 @@ def save_group(pt_path, nii_file, target_name):
     # Save memory by loading only one at a time
     for i, f in enumerate(list(files)):
         # Volumes are 1-based indices
-        save_stack(f.get_fdata(), pt_t_f + target_name + str(i + 1))
+        if dcm:
+            save_dicom_stack(f.get_fdata(), pt_t_f + target_name)
+        else:
+            save_stack(f.get_fdata(), pt_t_f + target_name + str(i + 1))
 
 def copy_dcm(pt_path, dicom_dataset, target_f):
     pt_base = os.path.basename(pt_path)
@@ -70,12 +97,14 @@ if __name__ == '__main__':
     dicom_dataset = "/mnt/e/HNSCC dataset/HNSCC"
     mask_p = "mask_GTVp*.nii.gz"
     mask_n = "mask_GTVn*.nii.gz"
+    dicoms = "image.nii.gz"
 
-    separated_output_dir = "/home/hussam/organized_dataset"
+    separated_output_dir = "/home/hussam/organized_dataset_2"
 
     pts = glob.glob(dataset + "*")
 
     for p in tqdm.tqdm(pts):
         save_group(p, mask_p, "GTVp")
         save_group(p, mask_n, "GTVn")
-        copy_dcm(p, dicom_dataset, separated_output_dir)
+        #copy_dcm(p, dicom_dataset, separated_output_dir)
+        save_group(p, dicoms, "dicoms", dcm = True)

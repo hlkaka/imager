@@ -16,6 +16,7 @@ from CustomTransforms import Imagify
 
 sys.path.append('models/')
 from UNet_L import UNet
+from UNet_mateuszbuda import UNet_m
 
 # Assumes holdout was done
 # Train/val/test split
@@ -24,7 +25,7 @@ from UNet_L import UNet
 # Create model
 # Run model
 
-dataset = "../organized_dataset"
+dataset = "../organized_dataset_2"
 model_output_parent = "../model_runs"
 
 new_ds_split = True
@@ -70,12 +71,12 @@ if __name__ == '__main__':
     os.makedirs(model_dir, exist_ok=True)
     dsm.save_lists(model_dir)
 
-    preprocess_fn = get_preprocessing_fn(backbone, pretrained=encoder_weights)
+    #preprocess_fn = get_preprocessing_fn(backbone, pretrained=encoder_weights)
 
     _image_transforms = [
         Window(WL, WW),
         Imagify(WL, WW),
-        preprocess_fn,
+        #preprocess_fn,
         to_float,
     ]
 
@@ -93,7 +94,8 @@ if __name__ == '__main__':
     datasets['test'] = CTDicomSlices(test_dicoms, preprocessing = image_transforms, img_and_mask_transform = img_mask_tsfm)
 
     # create model
-    model = UNet(datasets, batch_size=batch_size, lr=lr)
+    #model = UNet(datasets, batch_size=batch_size, lr=lr)
+    model = UNet_m(datasets, lr=lr, batch_size = batch_size)
 
     # save params
     params = "batch_size: {}\nbackbone: {}\nencoder_weights: {}\nWL: {}\nWW: {}\nimg_size: {}\nLR: {}".format(

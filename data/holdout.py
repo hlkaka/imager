@@ -8,7 +8,7 @@ import random
 import shutil
 
 holdout_frac = 0.1
-dataset = '../organized_dataset'
+dataset = '../organized_dataset_2'
 holdout_list = '../holdout_set.txt'
 holdout_dir = '../holdouts'
 
