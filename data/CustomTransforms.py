@@ -39,7 +39,7 @@ class TorchFunctionalTransforms():
         Inplace
         Works on single images and on batches
         '''
-        tensor += torch.randn(tensor.size(), dtype=tensor.dtype) * std + mean
+        tensor += torch.randn(tensor.size(), dtype=tensor.dtype, device=device) * std + mean
         return tensor
 
 class Window():
