@@ -120,6 +120,9 @@ def train_model(model, model_dir):
     else:
         trainer = Trainer(gpus=0, default_root_dir=model_dir, max_epochs=n_epochs)
 
+    trainer.tfit(model)
+    trainer.test()
+
 def get_model(datasets, batch_size) -> UNet_m:
     return UNet_m(datasets, lr=lr, batch_size = batch_size, gaussian_noise_std = gaussian_noise_std,
                  degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params)
