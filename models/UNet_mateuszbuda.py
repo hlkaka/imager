@@ -100,7 +100,7 @@ class UNet_m(pl.LightningModule):
         NOT inplace
         '''
         with torch.no_grad():
-            TFT.GaussianNoise(images, std = self.gaussian_noise_std)
+            TFT.GaussianNoise(images, std = self.gaussian_noise_std, device=self.device)
         
             # add the equivalent of a channel axis to masks so Kornia can work with it
             # We expect (B, C, H, W) so the channel axis goes in position 1
@@ -258,5 +258,5 @@ class UNet_m(pl.LightningModule):
             cooldown = self.optimizer_params['cooldown']
             min_lr = self.optimizer_params['min_lr']
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=factor, patience=patience, cooldown=cooldown, min_lr=min_lr)
-            
+
         return [optimizer], [scheduler]

@@ -34,7 +34,7 @@ class TorchFunctionalTransforms():
         return tensor
 
     @staticmethod
-    def GaussianNoise(tensor, mean = 0, std = 1):
+    def GaussianNoise(tensor, mean = 0, std = 1, device = torch.device("cpu")):
         '''
         Inplace
         Works on single images and on batches
