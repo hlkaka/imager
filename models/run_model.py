@@ -120,7 +120,7 @@ def train_model(model, model_dir):
     else:
         trainer = Trainer(gpus=0, default_root_dir=model_dir, max_epochs=n_epochs)
 
-    trainer.tfit(model)
+    trainer.fit(model)
     trainer.test()
 
 def get_model(datasets, batch_size) -> UNet_m:
