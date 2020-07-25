@@ -13,6 +13,7 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
 import kornia
+from torch.cuda.amp import autocast
 
 from loss import DiceLoss2
 
@@ -70,15 +71,15 @@ class UNet_m(pl.LightningModule):
         self.dl_workers = dl_workers
         self.class_weights = class_weights
 
-        # Augmentations
-        self.ra = kornia.augmentation.RandomAffine(degrees=30, translate=(0.2, 0.2), scale=(0.8, 1.3), shear=(7, 7))
-        self.rf = kornia.augmentation.RandomHorizontalFlip()
-
         self.WW = WW
         self.WL = WL
         self.gaussian_noise_std = gaussian_noise_std
 
         self.optimizer_params = optimizer_params
+
+        # Augmentations
+        self.ra = kornia.augmentation.RandomAffine(degrees=30, translate=(0.2, 0.2), scale=(0.8, 1.3), shear=(7, 7))
+        self.rf = kornia.augmentation.RandomHorizontalFlip()
 
     def preprocessing(self, images, masks, b_h_w_c = True):
         '''
@@ -102,35 +103,29 @@ class UNet_m(pl.LightningModule):
         # Hack solution since Kornia cannot do FP16 affine transformations
         # This is because Kornia affine calls torch.inverse which is not implemented for FP16
         # If torch implements FP16 for inverse() or Kornia avoids this function, remove this code
-        if images.dtype == torch.float16:
-            half = True
-            images = images.float()
-            masks = masks.float()
-        else:
-            half = False
-
-        with torch.no_grad():
-            TFT.GaussianNoise(images, std = self.gaussian_noise_std, device=self.device)
-        
-            # add the equivalent of a channel axis to masks so Kornia can work with it
-            # We expect (B, C, H, W) so the channel axis goes in position 1
-            masks = masks.unsqueeze(1)
-
-            params = self.ra.generate_parameters(images.shape)
-            images = self.ra(images, params)
-            masks = self.ra(masks, params)
-
-            params = self.rf.generate_parameters(images.shape)
-            images = self.rf(images, params)
-            masks = self.rf(masks, params)
-
-            # Remove the mask channel axis
-            masks = masks.squeeze(1)
-
-        if half:
-            images = images.half()
-            masks = masks.half()
+        with autocast(enabled=False):
+            with torch.no_grad():
+                TFT.GaussianNoise(images, std = self.gaussian_noise_std, device=self.device)
             
+                # add the equivalent of a channel axis to masks so Kornia can work with it
+                # We expect (B, C, H, W) so the channel axis goes in position 1
+                masks = masks.unsqueeze(1)
+
+                params = self.ra.generate_parameters(images.shape)
+                images = self.ra(images, params)
+                masks = self.ra(masks, params)
+
+                params = self.rf.generate_parameters(images.shape)
+                images = self.rf(images, params)
+                masks = self.rf(masks, params)
+
+                # Remove the mask channel axis
+                masks = masks.squeeze(1)
+
+        #if half:
+        #    images = images.half()
+        #    masks = masks.half()
+
         return images, masks
 
     def forward(self, x):

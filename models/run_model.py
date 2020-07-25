@@ -62,29 +62,31 @@ scale=(0.8, 1.3)
 shear=(7, 7)
 gaussian_noise_std = 0.3
 
+optimizer_params = {
+        'factor': 0.5,
+        'patience': 5, 
+        'cooldown': 5, 
+        'min_lr': 1e-6
+}
+
 def get_time():
     now = datetime.now()
     return now.strftime("%Y-%m-%d-%H:%M:%S")
 
-if __name__ == '__main__':
+def get_datasets(model_dir = None):
+    '''
+    Builds the necessary datasets
+    model_dir is where model parameters will be stored
+    '''
+
     # Manage patient splits
     if new_ds_split:
         dsm = DatasetManager.generate_train_val_test(dataset, val_frac, test_frac)
     else:
         dsm = DatasetManager.load_train_val_test(dataset, train_list, val_list, test_list)
-
-    # where to store model params
-    model_dir = "{}/{}".format(model_output_parent, get_time())
-    os.makedirs(model_dir, exist_ok=True)
-    dsm.save_lists(model_dir)
-
-    # Setup trainer
-    if torch.cuda.is_available():
-        batch_size = gpu_batch_size    
-        trainer = Trainer(gpus=1, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
-    else:
-        batch_size = cpu_batch_size
-        trainer = Trainer(gpus=0, default_root_dir=model_dir, max_epochs=n_epochs)
+    
+    if model_dir is not None:
+        dsm.save_lists(model_dir)
 
     #preprocess_fn = get_preprocessing_fn(backbone, pretrained=encoder_weights)
 
@@ -98,17 +100,41 @@ if __name__ == '__main__':
     datasets['val'] = CTDicomSlices(val_dicoms, img_and_mask_transform = img_mask_tsfm)
     datasets['test'] = CTDicomSlices(test_dicoms, img_and_mask_transform = img_mask_tsfm)
 
-    optimizer_params = {
-            'factor': 0.5,
-            'patience': 5, 
-            'cooldown': 5, 
-            'min_lr': 1e-6
-    }
+    return datasets
+
+def get_batch_size():
+    # Setup trainer
+    if torch.cuda.is_available():
+        batch_size = gpu_batch_size    
+        trainer = Trainer(gpus=1, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
+    else:
+        batch_size = cpu_batch_size
+        trainer = Trainer(gpus=0, default_root_dir=model_dir, max_epochs=n_epochs)
+
+    return batch_size
+
+def train_model(model, model_dir):
+    # Setup trainer
+    if torch.cuda.is_available():
+        trainer = Trainer(gpus=1, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
+    else:
+        trainer = Trainer(gpus=0, default_root_dir=model_dir, max_epochs=n_epochs)
+
+def get_model(datasets, batch_size) -> UNet_m:
+    return UNet_m(datasets, lr=lr, batch_size = batch_size, gaussian_noise_std = gaussian_noise_std,
+                 degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params)
+
+if __name__ == '__main__':
+    # where to store model params
+    model_dir = "{}/{}".format(model_output_parent, get_time())
+    os.makedirs(model_dir, exist_ok=True)
+    
+    datasets = get_datasets(model_dir)
+    batch_size = get_batch_size()
 
     # create model
     #model = UNet(datasets, backbone=backbone, encoder_weights=encoder_weights, batch_size=batch_size, lr=lr, classes=2)
-    model = UNet_m(datasets, lr=lr, batch_size = batch_size, gaussian_noise_std = gaussian_noise_std,
-                 degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params)
+    model = get_model(datasets, batch_size)
 
     # save params
     params = "dataset: {}\nbatch_size: {}\nbackbone: {}\nencoder_weights: {}\nWL: {}\nWW: {}\nimg_size: {}\nLR: {}\n".format(
@@ -123,6 +149,4 @@ if __name__ == '__main__':
     with open("{}/{}".format(model_dir, params_file), "w") as f:
         f.write(params)
 
-    # Run
-    trainer.fit(model)
-    trainer.test()
+    train_model(model, model_dir)
