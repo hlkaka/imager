@@ -99,6 +99,16 @@ class UNet_m(pl.LightningModule):
         '''
         NOT inplace
         '''
+        # Hack solution since Kornia cannot do FP16 affine transformations
+        # This is because Kornia affine calls torch.inverse which is not implemented for FP16
+        # If torch implements FP16 for inverse() or Kornia avoids this function, remove this code
+        if images.dtype == torch.float16:
+            half = True
+            images = images.float()
+            masks = masks.float()
+        else:
+            half = False
+
         with torch.no_grad():
             TFT.GaussianNoise(images, std = self.gaussian_noise_std, device=self.device)
         
@@ -117,6 +127,10 @@ class UNet_m(pl.LightningModule):
             # Remove the mask channel axis
             masks = masks.squeeze(1)
 
+        if half:
+            images = images.half()
+            masks = masks.half()
+            
         return images, masks
 
     def forward(self, x):

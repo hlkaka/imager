@@ -14,6 +14,7 @@ sys.path.append('data/')
 from CTDataSet import CTDicomSlices, DatasetManager
 from CustomTransforms import Window
 from CustomTransforms import Imagify
+from CustomTransforms import TorchFunctionalTransforms as TFT
 
 sys.path.append('models/')
 from UNet_L import UNet
@@ -80,7 +81,7 @@ if __name__ == '__main__':
     # Setup trainer
     if torch.cuda.is_available():
         batch_size = gpu_batch_size    
-        trainer = Trainer(gpus=1, default_root_dir=model_dir, max_epochs=n_epochs)
+        trainer = Trainer(gpus=1, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
         batch_size = cpu_batch_size
         trainer = Trainer(gpus=0, default_root_dir=model_dir, max_epochs=n_epochs)
@@ -118,7 +119,7 @@ if __name__ == '__main__':
     )
 
     params += "\nOptimizer params: {}".format(optimizer_params)
-    
+
     with open("{}/{}".format(model_dir, params_file), "w") as f:
         f.write(params)
 
