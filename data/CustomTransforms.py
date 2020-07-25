@@ -1,6 +1,46 @@
 import numpy as np
 from albumentations import ToFloat, FromFloat
 from torchvision import transforms
+import torch
+
+class TorchFunctionalTransforms():
+    @staticmethod
+    def Window(tensor, level, width):
+        '''
+        Inplace
+        Works on single images and on batches
+        '''
+        Max = level + width // 2
+        Min = level - width // 2
+        torch.clamp(tensor, Min, Max, out=tensor)
+
+        return tensor
+
+    @staticmethod
+    def Imagify(tensor, level=1024, width=4096, min_pix = 0, max_pix = 255):
+        '''
+        Inplace
+        Works on single images and on batches
+        '''
+        min_hu = level - width // 2
+        max_hu = level + width // 2
+
+        # Tensor operations are in_place
+        tensor -= min_hu
+        tensor /= (max_hu - min_hu)
+        tensor *= max_pix
+        tensor += min_pix
+
+        return tensor
+
+    @staticmethod
+    def GaussianNoise(tensor, mean = 0, std = 1):
+        '''
+        Inplace
+        Works on single images and on batches
+        '''
+        tensor += torch.randn(tensor.size(), dtype=tensor.dtype) * std + mean
+        return tensor
 
 class Window():
     def __init__(self, level, width):

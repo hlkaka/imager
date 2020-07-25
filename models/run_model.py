@@ -8,6 +8,7 @@ from segmentation_models_pytorch.encoders import get_preprocessing_fn
 import albumentations as A
 from torchvision import transforms
 from datetime import datetime
+import torch
 
 sys.path.append('data/')
 from CTDataSet import CTDicomSlices, DatasetManager
@@ -38,8 +39,6 @@ val_list = "val.txt"
 test_list = "test.txt"
 params_file = "params.txt" # where to save params for this run
 
-batch_size = 2
-
 backbone = 'resnet34'
 encoder_weights = 'imagenet'
 
@@ -50,7 +49,17 @@ img_size = 256
 
 lr = 0.0001
 
+cpu_batch_size = 2
+gpu_batch_size = 64
+
 n_epochs = 10
+
+# Augmentations
+rotate=30
+translate=(0.2, 0.2)
+scale=(0.8, 1.3)
+shear=(7, 7)
+gaussian_noise_std = 0.3
 
 def get_time():
     now = datetime.now()
@@ -68,50 +77,41 @@ if __name__ == '__main__':
     os.makedirs(model_dir, exist_ok=True)
     dsm.save_lists(model_dir)
 
+    # Setup trainer
+    if torch.cuda.is_available():
+        batch_size = gpu_batch_size    
+        trainer = Trainer(gpus=1, default_root_dir=model_dir, max_epochs=n_epochs)
+    else:
+        batch_size = cpu_batch_size
+        trainer = Trainer(gpus=0, default_root_dir=model_dir, max_epochs=n_epochs)
+
     #preprocess_fn = get_preprocessing_fn(backbone, pretrained=encoder_weights)
 
-    _prep = [
-        Window(WL, WW),
-        Imagify(WL, WW),
-        #preprocess_fn,
-    ]
-
-    _img_tsfm = [A.GaussNoise()]
-
-    _img_mask_tsfm = [A.Resize(img_size, img_size),
-                      A.ElasticTransform(alpha_affine=10),
-                      A.HorizontalFlip(),
-                      A.OpticalDistortion(),
-                      A.Rotate(limit=30)]
-
-    val_img_mask_tsfm = A.Compose([A.Resize(img_size, img_size)],
-                        additional_targets={"image1": 'image', "mask1": 'mask'})
-
-    prep = transforms.Compose(_prep)
-    img_tsfm = A.Compose(_img_tsfm)
-    img_mask_tsfm = A.Compose(_img_mask_tsfm,
+    img_mask_tsfm = A.Compose([A.Resize(img_size, img_size)],
             additional_targets={"image1": 'image', "mask1": 'mask'})
 
     # create ds
     train_dicoms, val_dicoms, test_dicoms = dsm.get_dicoms()
     datasets = {}
-    datasets['train'] = CTDicomSlices(train_dicoms, preprocessing = prep, transform = img_tsfm, img_and_mask_transform = img_mask_tsfm)
-    datasets['val'] = CTDicomSlices(val_dicoms, preprocessing = prep, img_and_mask_transform = val_img_mask_tsfm)
-    datasets['test'] = CTDicomSlices(test_dicoms, preprocessing = prep, img_and_mask_transform = val_img_mask_tsfm)
+    datasets['train'] = CTDicomSlices(train_dicoms, img_and_mask_transform = img_mask_tsfm)
+    datasets['val'] = CTDicomSlices(val_dicoms, img_and_mask_transform = img_mask_tsfm)
+    datasets['test'] = CTDicomSlices(test_dicoms, img_and_mask_transform = img_mask_tsfm)
 
     # create model
-    #model = UNet(datasets, batch_size=batch_size, lr=lr)
-    model = UNet_m(datasets, lr=lr, batch_size = batch_size)
+    #model = UNet(datasets, backbone=backbone, encoder_weights=encoder_weights, batch_size=batch_size, lr=lr, classes=2)
+    model = UNet_m(datasets, lr=lr, batch_size = batch_size, gaussian_noise_std = gaussian_noise_std,
+                 degrees=rotate, translate=translate, scale=scale, shear=shear)
 
     # save params
-    params = "batch_size: {}\nbackbone: {}\nencoder_weights: {}\nWL: {}\nWW: {}\nimg_size: {}\nLR: {}".format(
-        batch_size, backbone, encoder_weights, WL, WW, img_size, lr
+    params = "dataset: {}\nbatch_size: {}\nbackbone: {}\nencoder_weights: {}\nWL: {}\nWW: {}\nimg_size: {}\nLR: {}\n".format(
+        dataset, batch_size, backbone, encoder_weights, WL, WW, img_size, lr
     )
-
+    params += "\n\n# AUGMENTATIONS\n\n rotation degrees: {}\ntranslate: {}\nscale: {}\nshear: {}\nGaussian noise: {}".format(
+        rotate, translate, scale, shear, gaussian_noise_std
+    )
     with open("{}/{}".format(model_dir, params_file), "w") as f:
         f.write(params)
 
-    # run
-    trainer = Trainer(gpus=0, default_root_dir=model_dir, max_epochs=n_epochs)
+    # Run
     trainer.fit(model)
     trainer.test()

@@ -1,7 +1,7 @@
 apt update
-apt upgrade
+apt -y upgrade
 
-apt install wget htop vim screen python3-pip unzip libglib2.0-0 jupyterlab
+apt -y install wget htop vim screen unzip libglib2.0-0 apt install -y libsm6 libxext6 libxrender-dev
 
 pip install --upgrade pip
 pip install virtualenv
@@ -14,4 +14,8 @@ source env/bin/activate
 # nightly pytorch
 pip install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cu102/torch_nightly.html
 
-pip install -U tqdm segmentation-models-pytorch pytorch-lightning albumentations SimpleITK
+pip install -U tqdm segmentation-models-pytorch pytorch-lightning albumentations SimpleITK jupyterlab
+
+pip install -U --no-deps Kornia
+
+wget https://hnscc-ds.nyc3.cdn.digitaloceanspaces.com/organized_dataset_2.zip

@@ -12,12 +12,20 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
+import kornia
+
 from loss import DiceLoss2
+
+import sys
+sys.path.append('data/')
+from CustomTransforms import TorchFunctionalTransforms as TFT
 
 class UNet_m(pl.LightningModule):
 
     def __init__(self, datasets, in_channels=3, out_channels=1,
-                 init_features=32, lr=0.0001, batch_size = 32, dl_workers = 8, class_weights :list = [1, 5.725]):
+                 init_features=32, lr=0.0001, batch_size = 32, dl_workers = 8, class_weights :list = [1, 5.725],
+                 WL :int = 50, WW :int = 200, gaussian_noise_std = 0,
+                 degrees=0, translate=(0, 0), scale=(1, 1), shear=(0, 0)):
         super(UNet_m, self).__init__()
 
         features = init_features
@@ -61,8 +69,58 @@ class UNet_m(pl.LightningModule):
         self.dl_workers = dl_workers
         self.class_weights = class_weights
 
+        # Augmentations
+        self.ra = kornia.augmentation.RandomAffine(degrees=30, translate=(0.2, 0.2), scale=(0.8, 1.3), shear=(7, 7))
+        self.rf = kornia.augmentation.RandomHorizontalFlip()
+
+        self.WW = WW
+        self.WL = WL
+        self.gaussian_noise_std = gaussian_noise_std
+
+    def preprocessing(self, images, masks, b_h_w_c = True):
+        '''
+        Applies windowing to input
+        If input is (B, H, W, C), then set the b_h_w_c to true so the model
+        can convert the image to (B, C, H, W)
+        '''
+        if b_h_w_c:
+            images = images.permute(0, 3, 1, 2)
+
+        with torch.no_grad():
+            TFT.Window(images, self.WL, self.WW)
+            TFT.Imagify(images, self.WL, self.WW)
+
+        return images, masks
+
+    def do_train_augmentations(self, images, masks):
+        '''
+        NOT inplace
+        '''
+        with torch.no_grad():
+            TFT.GaussianNoise(images, std = self.gaussian_noise_std)
+        
+            # add the equivalent of a channel axis to masks so Kornia can work with it
+            # We expect (B, C, H, W) so the channel axis goes in position 1
+            masks = masks.unsqueeze(1)
+
+            params = self.ra.generate_parameters(images.shape)
+            images = self.ra(images, params)
+            masks = self.ra(masks, params)
+
+            params = self.rf.generate_parameters(images.shape)
+            images = self.rf(images, params)
+            masks = self.rf(masks, params)
+
+            # Remove the mask channel axis
+            masks = masks.squeeze(1)
+
+        return images, masks
+
     def forward(self, x):
-        x = x.permute(0, 3, 1, 2)
+        '''
+        Expects input to be (B, C, H, W)
+        Remember to call preprocessing before this function
+        '''
 
         enc1 = self.encoder1(x)
         enc2 = self.encoder2(self.pool1(enc1))
@@ -121,6 +179,9 @@ class UNet_m(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         images, masks, _, _ = batch
 
+        images, masks = self.preprocessing(images, masks)
+        images, masks = self.do_train_augmentations(images, masks)
+
         y_hat = self(images)
 
         # loss dim is [batch, 1, img_x, img_y]
@@ -134,6 +195,8 @@ class UNet_m(pl.LightningModule):
 
     def validation_step(self, batch, batch_nb):
         images, masks, _, _ = batch
+
+        images, masks = self.preprocessing(images, masks)
 
         y_hat = self(images)
 
@@ -154,6 +217,8 @@ class UNet_m(pl.LightningModule):
 
     def test_step(self, batch, batch_nb):
         images, masks, _, _ = batch
+
+        images, masks = self.preprocessing(images, masks)
 
         y_hat = self(images)
 

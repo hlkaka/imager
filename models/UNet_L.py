@@ -20,7 +20,8 @@ class UNet(pl.LightningModule):
         self.dl_workers = dl_workers
 
     def forward(self, x):
-        x = x.permute(0, 3, 1, 2)
+        #x = x.permute(0, 3, 1, 2)
+        # Assume batch is of shape (B, C, H, W)
         return self.smp_unet(x)
 
     def dice_metric(self, y_hat, masks):
