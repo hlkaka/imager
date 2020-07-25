@@ -97,10 +97,17 @@ if __name__ == '__main__':
     datasets['val'] = CTDicomSlices(val_dicoms, img_and_mask_transform = img_mask_tsfm)
     datasets['test'] = CTDicomSlices(test_dicoms, img_and_mask_transform = img_mask_tsfm)
 
+    optimizer_params = {
+            'factor': 0.5,
+            'patience': 5, 
+            'cooldown': 5, 
+            'min_lr': 1e-6
+    }
+
     # create model
     #model = UNet(datasets, backbone=backbone, encoder_weights=encoder_weights, batch_size=batch_size, lr=lr, classes=2)
     model = UNet_m(datasets, lr=lr, batch_size = batch_size, gaussian_noise_std = gaussian_noise_std,
-                 degrees=rotate, translate=translate, scale=scale, shear=shear)
+                 degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params)
 
     # save params
     params = "dataset: {}\nbatch_size: {}\nbackbone: {}\nencoder_weights: {}\nWL: {}\nWW: {}\nimg_size: {}\nLR: {}\n".format(
@@ -109,6 +116,9 @@ if __name__ == '__main__':
     params += "\n\n# AUGMENTATIONS\n\n rotation degrees: {}\ntranslate: {}\nscale: {}\nshear: {}\nGaussian noise: {}".format(
         rotate, translate, scale, shear, gaussian_noise_std
     )
+
+    params += "\nOptimizer params: {}".format(optimizer_params)
+    
     with open("{}/{}".format(model_dir, params_file), "w") as f:
         f.write(params)
 

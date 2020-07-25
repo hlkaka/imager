@@ -25,7 +25,8 @@ class UNet_m(pl.LightningModule):
     def __init__(self, datasets, in_channels=3, out_channels=1,
                  init_features=32, lr=0.0001, batch_size = 32, dl_workers = 8, class_weights :list = [1, 5.725],
                  WL :int = 50, WW :int = 200, gaussian_noise_std = 0,
-                 degrees=0, translate=(0, 0), scale=(1, 1), shear=(0, 0)):
+                 degrees=0, translate=(0, 0), scale=(1, 1), shear=(0, 0),
+                 optimizer_params = None):
         super(UNet_m, self).__init__()
 
         features = init_features
@@ -76,6 +77,8 @@ class UNet_m(pl.LightningModule):
         self.WW = WW
         self.WL = WL
         self.gaussian_noise_std = gaussian_noise_std
+
+        self.optimizer_params = optimizer_params
 
     def preprocessing(self, images, masks, b_h_w_c = True):
         '''
@@ -246,4 +249,13 @@ class UNet_m(pl.LightningModule):
         return DataLoader(self.datasets['test'], batch_size=self.batch_size, num_workers = self.dl_workers, shuffle=False)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(params = self.parameters(), lr=self.lr)
+        optimizer = torch.optim.Adam(params = self.parameters(), lr=self.lr)
+        if self.optimizer_params is None:
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+        else:
+            factor = self.optimizer_params['factor']
+            patience = self.optimizer_params['patience']
+            cooldown = self.optimizer_params['cooldown']
+            min_lr = self.optimizer_params['min_lr']
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=factor, patience=patience, cooldown=cooldown, min_lr=min_lr)
+        return 
