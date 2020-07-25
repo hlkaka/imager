@@ -258,4 +258,5 @@ class UNet_m(pl.LightningModule):
             cooldown = self.optimizer_params['cooldown']
             min_lr = self.optimizer_params['min_lr']
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=factor, patience=patience, cooldown=cooldown, min_lr=min_lr)
-        return 
+            
+        return [optimizer], [scheduler]
