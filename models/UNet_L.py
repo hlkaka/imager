@@ -32,11 +32,15 @@ class UNet(pl.LightningModule):
         self.ra = kornia.augmentation.RandomAffine(degrees=30, translate=(0.2, 0.2), scale=(0.8, 1.3), shear=(7, 7))
         self.rf = kornia.augmentation.RandomHorizontalFlip()
 
-        self.mean = torch.tensor(mean, device=self.device)
-        self.mean = self.mean.unsqueeze(0).unsqueeze(2).unsqueeze(3)
+        mean = torch.tensor(mean)
+        mean = mean.unsqueeze(0).unsqueeze(2).unsqueeze(3)
 
-        self.std = torch.tensor(std, device=self.device)
-        self.std = self.std.unsqueeze(0).unsqueeze(2).unsqueeze(3)
+        std = torch.tensor(std)
+        std = std.unsqueeze(0).unsqueeze(2).unsqueeze(3)
+
+        # This approach is necessary so lightning knows to move this tensor to appropriate device
+        self.register_buffer("mean", mean)
+        self.register_buffer("std", std)
 
         self.max_pix = max_pix # pixel range is from 0 to this value
 
