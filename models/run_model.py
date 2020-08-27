@@ -4,6 +4,8 @@ Script to run the model
 import os
 import sys
 from pytorch_lightning import Trainer
+from pytorch_lightning.utilities.seed import seed_everything
+
 from segmentation_models_pytorch.encoders import get_preprocessing_fn
 import albumentations as A
 from torchvision import transforms
@@ -105,10 +107,8 @@ def get_batch_size():
     # Setup trainer
     if torch.cuda.is_available():
         batch_size = gpu_batch_size    
-        trainer = Trainer(gpus=1, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
         batch_size = cpu_batch_size
-        trainer = Trainer(gpus=0, default_root_dir=model_dir, max_epochs=n_epochs)
 
     return batch_size
 
@@ -132,6 +132,8 @@ def get_model(datasets, batch_size) -> UNet_m:
                 degrees=rotate, translate=translate, scale=scale, shear=shear)
 
 if __name__ == '__main__':
+    seed_everything(seed=45)
+    
     # where to store model params
     model_dir = "{}/{}".format(model_output_parent, get_time())
     os.makedirs(model_dir, exist_ok=True)
