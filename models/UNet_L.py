@@ -14,7 +14,7 @@ class UNet(pl.LightningModule):
                  classes :int = 2, activation :str = 'softmax', batch_size :int = 32,
                  lr = 0.0001, dl_workers = 8, WL :int = 50, WW :int = 200, gaussian_noise_std = 0,
                  degrees=0, translate=(0, 0), scale=(1, 1), shear=(0, 0), max_pix = 255,
-                 mean = [0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+                 mean = [0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], optimizer_params = None):
         super().__init__()
 
         self.smp_unet = smp.Unet(backbone, encoder_weights = encoder_weights, classes = classes, activation = activation)
@@ -43,6 +43,8 @@ class UNet(pl.LightningModule):
         self.register_buffer("std", std)
 
         self.max_pix = max_pix # pixel range is from 0 to this value
+
+        self.optimizer_params = optimizer_params
 
     def forward(self, x):
         #x = x.permute(0, 3, 1, 2)
@@ -126,4 +128,14 @@ class UNet(pl.LightningModule):
         return DataLoader(self.datasets['test'], batch_size=self.batch_size, num_workers = self.dl_workers, shuffle=False)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(params = self.smp_unet.parameters(), lr=self.lr)
+        optimizer = torch.optim.Adam(params = self.parameters(), lr=self.lr)
+        if self.optimizer_params is None:
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+        else:
+            factor = self.optimizer_params['factor']
+            patience = self.optimizer_params['patience']
+            cooldown = self.optimizer_params['cooldown']
+            min_lr = self.optimizer_params['min_lr']
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=factor, patience=patience, cooldown=cooldown, min_lr=min_lr)
+
+        return [optimizer], [scheduler]

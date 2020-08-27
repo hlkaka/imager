@@ -129,7 +129,7 @@ def get_model(datasets, batch_size) -> UNet_m:
     
     # UNet from segmentation models package
     return UNet(datasets, backbone=backbone, batch_size=batch_size, gaussian_noise_std = gaussian_noise_std,
-                degrees=rotate, translate=translate, scale=scale, shear=shear)
+                degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params)
 
 if __name__ == '__main__':
     seed_everything(seed=45)
