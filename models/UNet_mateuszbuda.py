@@ -13,13 +13,13 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
 import kornia
-from torch.cuda.amp import autocast
 
 from loss import DiceLoss2
 
 import sys
 sys.path.append('data/')
 from CustomTransforms import TorchFunctionalTransforms as TFT
+from utils import Utils
 
 class UNet_m(pl.LightningModule):
 
@@ -80,53 +80,6 @@ class UNet_m(pl.LightningModule):
         # Augmentations
         self.ra = kornia.augmentation.RandomAffine(degrees=30, translate=(0.2, 0.2), scale=(0.8, 1.3), shear=(7, 7))
         self.rf = kornia.augmentation.RandomHorizontalFlip()
-
-    def preprocessing(self, images, masks, b_h_w_c = True):
-        '''
-        Applies windowing to input
-        If input is (B, H, W, C), then set the b_h_w_c to true so the model
-        can convert the image to (B, C, H, W)
-        '''
-        if b_h_w_c:
-            images = images.permute(0, 3, 1, 2)
-
-        with torch.no_grad():
-            TFT.Window(images, self.WL, self.WW)
-            TFT.Imagify(images, self.WL, self.WW)
-
-        return images, masks
-
-    def do_train_augmentations(self, images, masks):
-        '''
-        NOT inplace
-        '''
-        # Hack solution since Kornia cannot do FP16 affine transformations
-        # This is because Kornia affine calls torch.inverse which is not implemented for FP16
-        # If torch implements FP16 for inverse() or Kornia avoids this function, remove this code
-        with autocast(enabled=False):
-            with torch.no_grad():
-                TFT.GaussianNoise(images, std = self.gaussian_noise_std, device=self.device)
-            
-                # add the equivalent of a channel axis to masks so Kornia can work with it
-                # We expect (B, C, H, W) so the channel axis goes in position 1
-                masks = masks.unsqueeze(1)
-
-                params = self.ra.generate_parameters(images.shape)
-                images = self.ra(images, params)
-                masks = self.ra(masks, params)
-
-                params = self.rf.generate_parameters(images.shape)
-                images = self.rf(images, params)
-                masks = self.rf(masks, params)
-
-                # Remove the mask channel axis
-                masks = masks.squeeze(1)
-
-        #if half:
-        #    images = images.half()
-        #    masks = masks.half()
-
-        return images, masks
 
     def forward(self, x):
         '''
@@ -191,8 +144,9 @@ class UNet_m(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         images, masks, _, _ = batch
 
-        images, masks = self.preprocessing(images, masks)
-        images, masks = self.do_train_augmentations(images, masks)
+        images, masks = Utils.preprocessing(images, masks, self.WL, self.WW)
+        images, masks = Utils.do_train_augmentations(images, masks,
+                self.gaussian_noise_std, self.device, self.ra, self.rf)
 
         y_hat = self(images)
 
@@ -208,7 +162,7 @@ class UNet_m(pl.LightningModule):
     def validation_step(self, batch, batch_nb):
         images, masks, _, _ = batch
 
-        images, masks = self.preprocessing(images, masks)
+        images, masks = Utils.preprocessing(images, masks, self.WL, self.WW)
 
         y_hat = self(images)
 
@@ -230,7 +184,7 @@ class UNet_m(pl.LightningModule):
     def test_step(self, batch, batch_nb):
         images, masks, _, _ = batch
 
-        images, masks = self.preprocessing(images, masks)
+        images, masks = Utils.preprocessing(images, masks, self.WL, self.WW)
 
         y_hat = self(images)
 

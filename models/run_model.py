@@ -14,7 +14,6 @@ sys.path.append('data/')
 from CTDataSet import CTDicomSlices, DatasetManager
 from CustomTransforms import Window
 from CustomTransforms import Imagify
-from CustomTransforms import TorchFunctionalTransforms as TFT
 
 sys.path.append('models/')
 from UNet_L import UNet
@@ -124,8 +123,13 @@ def train_model(model, model_dir):
     trainer.test()
 
 def get_model(datasets, batch_size) -> UNet_m:
-    return UNet_m(datasets, lr=lr, batch_size = batch_size, gaussian_noise_std = gaussian_noise_std,
-                 degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params)
+    # UNet Mateuszbuda
+    #return UNet_m(datasets, lr=lr, batch_size = batch_size, gaussian_noise_std = gaussian_noise_std,
+    #             degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params)
+    
+    # UNet from segmentation models package
+    return UNet(datasets, backbone=backbone, batch_size=batch_size, gaussian_noise_std = gaussian_noise_std,
+                degrees=rotate, translate=translate, scale=scale, shear=shear)
 
 if __name__ == '__main__':
     # where to store model params
