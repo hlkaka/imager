@@ -11,15 +11,15 @@ from utils import Utils
 class UNet(pl.LightningModule):
 
     def __init__(self, datasets, backbone :str = 'resnet34', encoder_weights :str = 'imagenet',
-                 classes :int = 2, activation :str = 'softmax', batch_size :int = 32, class_weights :list = [1, 5.725],
+                 classes :int = 2, activation :str = 'softmax', batch_size :int = 32,
                  lr = 0.0001, dl_workers = 8, WL :int = 50, WW :int = 200, gaussian_noise_std = 0,
-                 degrees=0, translate=(0, 0), scale=(1, 1), shear=(0, 0)):
+                 degrees=0, translate=(0, 0), scale=(1, 1), shear=(0, 0), max_pix = 255,
+                 mean = [0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
         super().__init__()
 
         self.smp_unet = smp.Unet(backbone, encoder_weights = encoder_weights, classes = classes, activation = activation)
         self.datasets = datasets
         self.batch_size = batch_size
-        self.class_weights = class_weights
         self.lr = lr
         self.dl_workers = dl_workers
 
@@ -32,6 +32,14 @@ class UNet(pl.LightningModule):
         self.ra = kornia.augmentation.RandomAffine(degrees=30, translate=(0.2, 0.2), scale=(0.8, 1.3), shear=(7, 7))
         self.rf = kornia.augmentation.RandomHorizontalFlip()
 
+        self.mean = torch.tensor(mean, device=self.device)
+        self.mean = self.mean.unsqueeze(0).unsqueeze(2).unsqueeze(3)
+
+        self.std = torch.tensor(std, device=self.device)
+        self.std = self.std.unsqueeze(0).unsqueeze(2).unsqueeze(3)
+
+        self.max_pix = max_pix # pixel range is from 0 to this value
+
     def forward(self, x):
         #x = x.permute(0, 3, 1, 2)
         # Assume batch is of shape (B, C, H, W)
@@ -41,8 +49,11 @@ class UNet(pl.LightningModule):
         images, masks, _, _ = batch
 
         images, masks = Utils.preprocessing(images, masks, self.WL, self.WW)
+
         images, masks = Utils.do_train_augmentations(images, masks,
                 self.gaussian_noise_std, self.device, self.ra, self.rf)
+
+        images.div_(self.max_pix).sub_(self.mean).div_(self.std)
 
         y_hat = self(images)
 
@@ -59,7 +70,8 @@ class UNet(pl.LightningModule):
         images, masks, _, _ = batch
 
         images, masks = Utils.preprocessing(images, masks, self.WL, self.WW)
-
+        images.div_(self.max_pix)
+        images.sub_(self.mean).div_(self.std)
         y_hat = self(images)
 
         # loss dim is [batch, 1, img_x, img_y]
@@ -81,6 +93,8 @@ class UNet(pl.LightningModule):
         images, masks, _, _ = batch
 
         images, masks = Utils.preprocessing(images, masks, self.WL, self.WW)
+
+        images.div_(self.max_pix).sub_(self.mean).div_(self.std)
 
         y_hat = self(images)
 
