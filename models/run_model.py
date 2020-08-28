@@ -21,6 +21,8 @@ sys.path.append('models/')
 from UNet_L import UNet
 from UNet_mateuszbuda import UNet_m
 
+from torchsummary import summary
+
 # Assumes holdout was done
 # Train/val/test split
 # Create dataset
@@ -50,6 +52,7 @@ WW = 200
 img_size = 256
 
 lr = 0.0001
+freeze_backbone = True
 
 cpu_batch_size = 2
 gpu_batch_size = 64
@@ -128,8 +131,16 @@ def get_model(datasets, batch_size) -> UNet_m:
     #             degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params)
     
     # UNet from segmentation models package
-    return UNet(datasets, backbone=backbone, batch_size=batch_size, gaussian_noise_std = gaussian_noise_std,
+    m = UNet(datasets, backbone=backbone, batch_size=batch_size, gaussian_noise_std = gaussian_noise_std,
                 degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params)
+
+    if freeze_backbone:
+        for param in m.smp_unet.encoder.parameters():
+            param.requires_grad = False
+
+    summary(m, (3, 256, 256))
+
+    return m
 
 if __name__ == '__main__':
     seed_everything(seed=45)

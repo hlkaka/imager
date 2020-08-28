@@ -1,7 +1,7 @@
 apt update
 apt -y upgrade
 
-apt -y install wget htop vim screen unzip libglib2.0-0 apt install -y libsm6 libxext6 libxrender-dev
+apt -y install wget htop vim unzip libglib2.0-0 libsm6 libxext6 libxrender-dev
 
 pip install --upgrade pip
 pip install virtualenv
@@ -14,7 +14,7 @@ source env/bin/activate
 # nightly pytorch
 pip install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cu102/torch_nightly.html
 
-pip install -U tqdm segmentation-models-pytorch pytorch-lightning albumentations SimpleITK jupyterlab
+pip install -U tqdm segmentation-models-pytorch pytorch-lightning albumentations SimpleITK jupyterlab torchsummary
 
 pip install -U --no-deps Kornia
 
