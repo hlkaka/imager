@@ -52,7 +52,8 @@ WW = 200
 img_size = 256
 
 lr = 0.0001
-freeze_backbone = True
+freeze_backbone = False
+freeze_n_layers = 8
 
 cpu_batch_size = 2
 gpu_batch_size = 64
@@ -118,6 +119,7 @@ def get_batch_size():
 def train_model(model, model_dir):
     # Setup trainer
     if torch.cuda.is_available():
+        #trainer = Trainer(gpus=2, distributed_backend='ddp', precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
         trainer = Trainer(gpus=1, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
         trainer = Trainer(gpus=0, default_root_dir=model_dir, max_epochs=n_epochs)
@@ -125,7 +127,7 @@ def train_model(model, model_dir):
     trainer.fit(model)
     trainer.test()
 
-def get_model(datasets, batch_size) -> UNet_m:
+def get_model(datasets, batch_size):
     # UNet Mateuszbuda
     #return UNet_m(datasets, lr=lr, batch_size = batch_size, gaussian_noise_std = gaussian_noise_std,
     #             degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params)
@@ -134,11 +136,21 @@ def get_model(datasets, batch_size) -> UNet_m:
     m = UNet(datasets, backbone=backbone, batch_size=batch_size, gaussian_noise_std = gaussian_noise_std,
                 degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params)
 
-    if freeze_backbone:
+    if freeze_backbone:       
+        # Freeze entire backbone
         for param in m.smp_unet.encoder.parameters():
             param.requires_grad = False
 
-    summary(m, (3, 256, 256))
+    # Freeze only some layers
+    if freeze_n_layers > 0 and not freeze_backbone:
+        ct = 0
+        for child in m.smp_unet.encoder.children():
+            ct += 1
+            if ct < freeze_n_layers: # Number of layers to freeze
+                for param in child.parameters():
+                    param.requires_grad = False
+
+    summary(m, (3, img_size, img_size), device='cpu')
 
     return m
 
