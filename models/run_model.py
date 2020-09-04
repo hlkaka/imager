@@ -46,6 +46,8 @@ params_file = "params.txt" # where to save params for this run
 backbone = 'resnet34'
 encoder_weights = 'imagenet'
 
+same_image_all_channels = True
+
 WL = 50
 WW = 200
 
@@ -101,9 +103,9 @@ def get_datasets(model_dir = None):
     # create ds
     train_dicoms, val_dicoms, test_dicoms = dsm.get_dicoms()
     datasets = {}
-    datasets['train'] = CTDicomSlices(train_dicoms, img_and_mask_transform = img_mask_tsfm)
-    datasets['val'] = CTDicomSlices(val_dicoms, img_and_mask_transform = img_mask_tsfm)
-    datasets['test'] = CTDicomSlices(test_dicoms, img_and_mask_transform = img_mask_tsfm)
+    datasets['train'] = CTDicomSlices(train_dicoms, img_and_mask_transform = img_mask_tsfm, same_image_all_channels=same_image_all_channels)
+    datasets['val'] = CTDicomSlices(val_dicoms, img_and_mask_transform = img_mask_tsfm, same_image_all_channels=same_image_all_channels)
+    datasets['test'] = CTDicomSlices(test_dicoms, img_and_mask_transform = img_mask_tsfm, same_image_all_channels=same_image_all_channels)
 
     return datasets
 
@@ -173,8 +175,8 @@ if __name__ == '__main__':
     params = "note: {}\ndataset: {}\nbatch_size: {}\nbackbone: {}\nencoder_weights: {}\nWL: {}\nWW: {}\nimg_size: {}\nLR: {}\n".format(
         note, dataset, batch_size, backbone, encoder_weights, WL, WW, img_size, lr
     )
-    params += "\n\n# AUGMENTATIONS\n\n rotation degrees: {}\ntranslate: {}\nscale: {}\nshear: {}\nGaussian noise: {}".format(
-        rotate, translate, scale, shear, gaussian_noise_std
+    params += "\n\n# AUGMENTATIONS\n\n rotation degrees: {}\ntranslate: {}\nscale: {}\nshear: {}\nGaussian noise: {}\nSame image all channels: {}".format(
+        rotate, translate, scale, shear, gaussian_noise_std, same_image_all_channels
     )
 
     params += "\nOptimizer params: {}".format(optimizer_params)

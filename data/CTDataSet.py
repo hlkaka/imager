@@ -13,7 +13,7 @@ class CTDicomSlices(Dataset):
     Loads CT stacks and their segmentations
     '''
     def __init__(self, dcm_file_list :list, transform = None, img_and_mask_transform = None,
-                shuffle = False, preprocessing = None):
+                shuffle = False, preprocessing = None, same_image_all_channels = False):
         # DICOM files
         self.dcm_list = dcm_file_list.copy()
         if shuffle:
@@ -22,6 +22,7 @@ class CTDicomSlices(Dataset):
         self.transform = transform
         self.img_and_mask_transform = img_and_mask_transform
         self.preprocessing = preprocessing
+        self.same_image_all_channels = same_image_all_channels
 
     def __getitem__(self, idx):
         '''
@@ -85,15 +86,19 @@ class CTDicomSlices(Dataset):
 
         img = sitk.GetArrayFromImage(sitk.ReadImage(img_path))
 
-        if os.path.isfile(prev_path):
-            prev_img = sitk.GetArrayFromImage(sitk.ReadImage(prev_path))
-        else:
+        if self.same_image_all_channels:
             prev_img = img
-
-        if os.path.isfile(next_path):
-            next_img = sitk.GetArrayFromImage(sitk.ReadImage(next_path))
-        else:
             next_img = img
+        else:
+            if os.path.isfile(prev_path):
+                prev_img = sitk.GetArrayFromImage(sitk.ReadImage(prev_path))
+            else:
+                prev_img = img
+
+            if os.path.isfile(next_path):
+                next_img = sitk.GetArrayFromImage(sitk.ReadImage(next_path))
+            else:
+                next_img = img
 
         return np.concatenate((prev_img, img, next_img), axis = 0)
 
