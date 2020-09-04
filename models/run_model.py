@@ -36,9 +36,6 @@ model_output_parent = "../model_runs"
 val_frac = 0.112
 test_frac = 0.112
 
-train_list = "train.txt"
-val_list = "val.txt"
-test_list = "test.txt"
 params_file = "params.txt" # where to save params for this run
 
 backbone = 'resnet34'
@@ -78,10 +75,13 @@ def get_time():
     now = datetime.now()
     return now.strftime("%Y-%m-%d-%H:%M:%S")
 
-def get_datasets(_same_image_all_channels, model_dir = None, new_ds_split = True):
+def get_datasets(_same_image_all_channels, model_dir = None, new_ds_split = True,
+                    train_list = "train.txt", val_list = "val.txt", test_list = "test.txt"):
     '''
     Builds the necessary datasets
     model_dir is where model parameters will be stored
+    new_ds_split creates a new train/val/test split if True, and loads the relevant folders if false
+    dslist_in_pt_dir uses the pt dir as a reference for where the patient lists are located
     '''
 
     # Manage patient splits
