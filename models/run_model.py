@@ -33,8 +33,6 @@ from torchsummary import summary
 dataset = "../organized_dataset_2"
 model_output_parent = "../model_runs"
 
-new_ds_split = True
-
 val_frac = 0.112
 test_frac = 0.112
 
@@ -80,7 +78,7 @@ def get_time():
     now = datetime.now()
     return now.strftime("%Y-%m-%d-%H:%M:%S")
 
-def get_datasets(model_dir = None):
+def get_datasets(_same_image_all_channels, model_dir = None, new_ds_split = True):
     '''
     Builds the necessary datasets
     model_dir is where model parameters will be stored
@@ -103,9 +101,9 @@ def get_datasets(model_dir = None):
     # create ds
     train_dicoms, val_dicoms, test_dicoms = dsm.get_dicoms()
     datasets = {}
-    datasets['train'] = CTDicomSlices(train_dicoms, img_and_mask_transform = img_mask_tsfm, same_image_all_channels=same_image_all_channels)
-    datasets['val'] = CTDicomSlices(val_dicoms, img_and_mask_transform = img_mask_tsfm, same_image_all_channels=same_image_all_channels)
-    datasets['test'] = CTDicomSlices(test_dicoms, img_and_mask_transform = img_mask_tsfm, same_image_all_channels=same_image_all_channels)
+    datasets['train'] = CTDicomSlices(train_dicoms, img_and_mask_transform = img_mask_tsfm, same_image_all_channels=_same_image_all_channels)
+    datasets['val'] = CTDicomSlices(val_dicoms, img_and_mask_transform = img_mask_tsfm, same_image_all_channels=_same_image_all_channels)
+    datasets['test'] = CTDicomSlices(test_dicoms, img_and_mask_transform = img_mask_tsfm, same_image_all_channels=_same_image_all_channels)
 
     return datasets
 
@@ -163,7 +161,7 @@ if __name__ == '__main__':
     model_dir = "{}/{}".format(model_output_parent, get_time())
     os.makedirs(model_dir, exist_ok=True)
     
-    datasets = get_datasets(model_dir)
+    datasets = get_datasets(same_image_all_channels, model_dir)
     batch_size = get_batch_size()
 
     # create model
