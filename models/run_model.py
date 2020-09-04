@@ -169,8 +169,9 @@ if __name__ == '__main__':
     model = get_model(datasets, batch_size)
 
     # save params
-    params = "dataset: {}\nbatch_size: {}\nbackbone: {}\nencoder_weights: {}\nWL: {}\nWW: {}\nimg_size: {}\nLR: {}\n".format(
-        dataset, batch_size, backbone, encoder_weights, WL, WW, img_size, lr
+    note = input("Enter title for this training run:")
+    params = "note: {}\ndataset: {}\nbatch_size: {}\nbackbone: {}\nencoder_weights: {}\nWL: {}\nWW: {}\nimg_size: {}\nLR: {}\n".format(
+        note, dataset, batch_size, backbone, encoder_weights, WL, WW, img_size, lr
     )
     params += "\n\n# AUGMENTATIONS\n\n rotation degrees: {}\ntranslate: {}\nscale: {}\nshear: {}\nGaussian noise: {}".format(
         rotate, translate, scale, shear, gaussian_noise_std
