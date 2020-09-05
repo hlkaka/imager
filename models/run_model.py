@@ -87,12 +87,11 @@ def get_datasets(_same_image_all_channels, model_dir = None, new_ds_split = True
     # Manage patient splits
     if new_ds_split:
         dsm = DatasetManager.generate_train_val_test(dataset, val_frac, test_frac)
+        if model_dir is not None:
+            dsm.save_lists(model_dir)
     else:
         dsm = DatasetManager.load_train_val_test(dataset, train_list, val_list, test_list)
     
-    if model_dir is not None:
-        dsm.save_lists(model_dir)
-
     #preprocess_fn = get_preprocessing_fn(backbone, pretrained=encoder_weights)
 
     img_mask_tsfm = A.Compose([A.Resize(img_size, img_size)],

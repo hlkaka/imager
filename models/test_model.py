@@ -108,6 +108,8 @@ def get_model(model_dir, batch_size):
 
     summary(m, (3, img_size, img_size), device='cpu')
 
+    print("Loading checkpoint: {}".format(ckpt))
+
     return m
 
 if __name__ == '__main__':
@@ -121,7 +123,7 @@ if __name__ == '__main__':
         # where to store model params
         model_dir = "{}/{}".format(model_output_parent, model_dir)
         
-    datasets = get_datasets(_same_image_all_channels = False, model_dir=model_dir, new_ds_split = False,
+    datasets = get_datasets(_same_image_all_channels = same_image_all_channels, model_dir=model_dir, new_ds_split = False,
                     train_list = "{}/train.txt".format(model_dir), val_list="{}/val.txt".format(model_dir), test_list="{}/test.txt".format(model_dir))
     batch_size = get_batch_size()
 
