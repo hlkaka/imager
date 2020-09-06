@@ -11,11 +11,17 @@ python -m venv env
 
 source env/bin/activate
 
-# nightly pytorch
-pip install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cu102/torch_nightly.html
+pip install --upgrade pip
+
+# 1.6 CUDA 10.2+
+pip install torch torchvision
 
 pip install -U tqdm segmentation-models-pytorch pytorch-lightning albumentations SimpleITK jupyterlab torchsummary
 
 pip install -U --no-deps Kornia
 
 wget https://hnscc-ds.nyc3.cdn.digitaloceanspaces.com/organized_dataset_2.zip
+
+echo "Unzipping downloaded dataset"
+
+unzip -q organized_dataset_2.zip
