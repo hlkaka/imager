@@ -57,6 +57,8 @@ gpu_batch_size = 64
 
 n_epochs = 10
 
+in_channels = 1  # Hack in UNet_L at the moment to make this work
+
 # Augmentations
 rotate=30
 translate=(0.2, 0.2)
@@ -133,7 +135,7 @@ def get_model(datasets, batch_size):
     
     # UNet from segmentation models package
     m = UNet(datasets, backbone=backbone, batch_size=batch_size, gaussian_noise_std = gaussian_noise_std,
-                degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params)
+                degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params, in_channels=in_channels)
 
     if freeze_backbone:       
         # Freeze entire backbone

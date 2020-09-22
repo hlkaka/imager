@@ -14,10 +14,10 @@ class UNet(pl.LightningModule):
                  classes :int = 2, activation :str = 'softmax', batch_size :int = 32,
                  lr = 0.0001, dl_workers = 8, WL :int = 50, WW :int = 200, gaussian_noise_std = 0,
                  degrees=0, translate=(0, 0), scale=(1, 1), shear=(0, 0), max_pix = 255,
-                 mean = [0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], optimizer_params = None):
+                 mean = [0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], optimizer_params = None, in_channels=3):
         super().__init__()
 
-        self.smp_unet = smp.Unet(backbone, encoder_weights = encoder_weights, classes = classes, activation = activation)
+        self.smp_unet = smp.Unet(backbone, encoder_weights = encoder_weights, classes = classes, activation = activation, in_channels=in_channels)
         self.datasets = datasets
         self.batch_size = batch_size
         self.lr = lr
@@ -46,10 +46,16 @@ class UNet(pl.LightningModule):
 
         self.optimizer_params = optimizer_params
 
+        # Hack to keep track of input channels
+        self.in_channels = in_channels
+
     def forward(self, x):
         #x = x.permute(0, 3, 1, 2)
         # Assume batch is of shape (B, C, H, W)
-        return self.smp_unet(x)
+        if self.in_channels == 1:    # Hack to limit to single input
+            return self.smp_unet(x[:,1,:,:].unsqueeze(1))
+        else:
+            return self.smp_unet(x)
 
     def training_step(self, batch, batch_idx):
         images, masks, _, _ = batch
