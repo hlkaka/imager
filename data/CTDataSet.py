@@ -5,6 +5,7 @@ import SimpleITK as sitk
 import numpy as np
 import random
 import cv2
+from skimage.segmentation import felzenszwalb
 
 from holdout import read_list, write_list
 
@@ -13,7 +14,26 @@ class CTDicomSlices(Dataset):
     Loads CT stacks and their segmentations
     '''
     def __init__(self, dcm_file_list :list, transform = None, img_and_mask_transform = None,
-                shuffle = False, preprocessing = None, same_image_all_channels = False):
+                shuffle = False, preprocessing = None, same_image_all_channels = False,
+                n_surrounding :int = 1, trim_edges :bool = False, self_supervised_mask = False,
+                resize_transform = None):
+        '''
+        Initializes a new CTDicomSlices
+
+        Parameters:
+        dcm_file_list: list of .dcm files containing slices of all patiences in dataset
+        transform: albumentation to transform input slices
+        img_and_mask_transform: albumentation transform both input slices and mask
+        shuffle: whether or not to shuffle the dataset
+        preprocessing: function to transform input slices
+        same_image_all_channels: all channels use the same slice
+        n_surrounding: number of slices to take per input. Each item will have n_surrounding * 2 + 1 slices
+        trim_edges: trims columns and rows that are empty. May result in different resolutions for each image.
+                    However, a given stack of surrounding slices will all have the same size - each trimmed by
+                    the min amount.
+        resize_transform: the transform to resize an image and mask. If self supervised, resized transform
+                          should resize image only. Otherwise, it should resize both image and mask.
+        '''
         # DICOM files
         self.dcm_list = dcm_file_list.copy()
         if shuffle:
@@ -23,6 +43,10 @@ class CTDicomSlices(Dataset):
         self.img_and_mask_transform = img_and_mask_transform
         self.preprocessing = preprocessing
         self.same_image_all_channels = same_image_all_channels
+        self.n_surrounding = n_surrounding
+        self.trim_edges = trim_edges
+        self.self_supervised_mask = self_supervised_mask
+        self.resize_transform = resize_transform
 
     def __getitem__(self, idx):
         '''
@@ -33,22 +57,75 @@ class CTDicomSlices(Dataset):
         slice_n = os.path.basename(img_path)[0:-4]
         slice_n = int(slice_n)
 
-        slices = self.get_surroundings(img_path, slice_n)
+        slices = self.get_n_slices(img_path, slice_n, self.n_surrounding)
         slices = np.moveaxis(slices, 0, -1)
 
-        mask = self.get_mask(img_path, slice_n)
-
         if self.preprocessing is not None:
+            # Typically window
             slices = self.preprocessing(slices)
 
-        if self.transform is not None:
-            slices = self.transform(image=slices)['image']
+        if self.self_supervised_mask:
+            if self.trim_edges:
+                slices = self.crop_image_only_outside(slices)
 
-        if self.img_and_mask_transform is not None:
-            sample = self.img_and_mask_transform(image=slices, mask=mask)
-            slices, mask = sample['image'], sample['mask']
+            if self.resize_transform is not None:
+                slices = self.resize_transform(image=slices)['image']
+
+            if self.transform is not None:
+                # Typically gassian noise, scale, rotate
+                slices = self.transform(image=slices)['image']
+
+            mask = self.get_felzenszwalb(slices)
+
+            if self.img_and_mask_transform is not None:
+                # Not used
+                print("WARNING: Image and mask transform is used in a self-supervised setting. This will be ignored.")
+                #sample = self.img_and_mask_transform(image=slices, mask=mask)
+                #slices, mask = sample['image'], sample['mask']
+
+        else:
+            mask = self.get_mask(img_path, slice_n)
+
+            if self.trim_edges:
+                slices, mask = self.crop_image_only_outside(slices, mask)
+
+            if self.resize_transform is not None:
+                # Typically scale, rotate, etc
+                sample = self.resize_transform(image=slices, mask=mask)
+                slices, mask = sample['image'], sample['mask']
+
+            if self.transform is not None:
+                # Typically gassian noise
+                slices = self.transform(image=slices)['image']
+
+            if self.img_and_mask_transform is not None:
+                # Typically scale, rotate, etc
+                sample = self.img_and_mask_transform(image=slices, mask=mask)
+                slices, mask = sample['image'], sample['mask']
 
         return slices.astype("float32"), mask.astype("float32"), img_path, slice_n
+
+    def crop_image_only_outside(self, img :np.array, original_mask :np.array = None, tol :int = 0):
+        '''
+        Crops empty rows and columns on edge of images
+        This should be run after windowing
+        Code taken from here: https://codereview.stackexchange.com/questions/132914/crop-black-border-of-image-using-numpy
+        '''
+        # img is 2D or 3D image data
+        # tol  is tolerance
+        mask = img>tol
+        if img.ndim==3:
+            mask = mask.all(2)
+
+        m,n = mask.shape
+        mask0,mask1 = mask.any(0),mask.any(1)
+        col_start,col_end = mask0.argmax(),n-mask0[::-1].argmax()
+        row_start,row_end = mask1.argmax(),m-mask1[::-1].argmax()
+
+        if original_mask is not None:
+            return img[row_start:row_end,col_start:col_end], original_mask[row_start:row_end,col_start:col_end]
+        else:
+            return img[row_start:row_end,col_start:col_end]
 
     def get_mask(self, img_path :str, slice_n :int):
         dicoms_dir = os.path.dirname(img_path)
@@ -67,46 +144,66 @@ class CTDicomSlices(Dataset):
             else:
                 aggregate_mask = mask_comp
 
-        # No longer required. Rotation is done in dcm creation.
-        #aggregate_mask = np.rot90(aggregate_mask)
-        #aggregate_mask = np.flipud(aggregate_mask)
-
         return aggregate_mask
 
-    def get_surroundings(self, img_path :str, slice_n :int):
+    def get_n_slices(self, img_path :str, slice_n :int, surrounding :int):
         '''
-        Gets the slice and 1 before and after
-        If 1 before or after does not exist, returns the slice itself
-        Returns a numpy array of shape: [3, 512, 512] with position [1, :, :] being the desired slice
+        Gets n slices from the given image path.
+        If surrounding = 0: gets, only a single slice
+        If surrounding > 0: gets surrounding many slides before and after
+            i.e. total number of slides is surrounding * 2 + 1
         '''
         dicoms_dir = os.path.dirname(img_path)
+
+        imgs = []
+        empties = [] # This will hold hypothetical slice number of images that don't exist
         
-        prev_path = dicoms_dir + "/" + str(slice_n - 1) + ".dcm"
-        next_path = dicoms_dir + "/" + str(slice_n + 1) + ".dcm"
-
-        img = sitk.GetArrayFromImage(sitk.ReadImage(img_path))
-
-        if self.same_image_all_channels:
-            prev_img = img
-            next_img = img
-        else:
-            if os.path.isfile(prev_path):
-                prev_img = sitk.GetArrayFromImage(sitk.ReadImage(prev_path))
+        # +1 because range(start, stop) does not include stop 
+        for i in range(slice_n - surrounding, slice_n + surrounding + 1):
+            slice_path = "{}/{}.dcm".format(dicoms_dir, i)
+            if os.path.isfile(slice_path):
+                imgs.append(sitk.GetArrayFromImage(sitk.ReadImage(slice_path)))
             else:
-                prev_img = img
-
-            if os.path.isfile(next_path):
-                next_img = sitk.GetArrayFromImage(sitk.ReadImage(next_path))
+                empties.append(i)
+        
+        # Order is important
+        # In above loop, we go from lowest n slice to the highest
+        # Here, we replicate the earliest available slice in beginning and the last available slice in end
+        for e in empties:
+            if e <= slice_n:
+                imgs.insert(0, imgs[0])
             else:
-                next_img = img
+                imgs.insert(-1, imgs[-1])
 
-        return np.concatenate((prev_img, img, next_img), axis = 0)
+        return np.concatenate(imgs, axis=0)
 
     def __len__(self):
         return len(self.dcm_list)
 
     def generate_file_list(patient_dir :str, dicom_glob :str = '/*/dicoms/*.dcm'):
         return glob.glob(patient_dir + dicom_glob)
+
+    def get_felzenszwalb(self, slices :np.array) -> np.array :
+        '''
+        Returns a self suprevised mask of the given image.
+        Needs to be run after window and imagify
+        '''
+        rows, cols = slices.shape[0], slices.shape[1]
+
+        mid_slice = slices.shape[2] // 2
+
+        segments = felzenszwalb(slices[:,:,mid_slice], scale=150, sigma=0.7, min_size=5)
+
+        selected_pixels = np.array([[5/16, 5/16], [5/16, 11/16], [11/16, 5/16], [11/16, 11/16]]) @ np.array([[rows, 0], [0, cols]])    # don't hard code image resolution
+        selected_pixels = selected_pixels.astype('int32')
+
+        selected_segments = [segments[tuple(sp)] for sp in selected_pixels]
+
+        pre_mask = [segments == ss for ss in selected_segments]
+
+        mask = np.logical_or.reduce(pre_mask)
+
+        return (mask * 1).astype("uint8") # convert to int mask
 
 
 class DatasetManager():
