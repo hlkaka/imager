@@ -6,6 +6,7 @@ import numpy as np
 import random
 import cv2
 from skimage.segmentation import felzenszwalb
+from pathlib import Path
 
 from holdout import read_list, write_list
 
@@ -16,7 +17,7 @@ class CTDicomSlices(Dataset):
     def __init__(self, dcm_file_list :list, transform = None, img_and_mask_transform = None,
                 shuffle = False, preprocessing = None, same_image_all_channels = False,
                 n_surrounding :int = 1, trim_edges :bool = False, self_supervised_mask = False,
-                resize_transform = None):
+                resize_transform = None, save_masks_path :str = None, dirs_to_dcm :int = 1):
         '''
         Initializes a new CTDicomSlices
 
@@ -33,6 +34,11 @@ class CTDicomSlices(Dataset):
                     the min amount.
         resize_transform: the transform to resize an image and mask. If self supervised, resized transform
                           should resize image only. Otherwise, it should resize both image and mask.
+        save_mask_path: saves all masks to the given dir. This is useful if creating self-supervised masks.
+                        if None, masks are not saved.
+        dirs_to_dcm: specifies how many dirs need to be traversed from dataset directory to get to DICOMs
+                     for main dataset, this should be 2. for pre-training dataset, this should be 1.
+                     this is used only for saving masks
         '''
         # DICOM files
         self.dcm_list = dcm_file_list.copy()
@@ -47,6 +53,8 @@ class CTDicomSlices(Dataset):
         self.trim_edges = trim_edges
         self.self_supervised_mask = self_supervised_mask
         self.resize_transform = resize_transform
+        self.save_masks_path = save_masks_path
+        self.dirs_to_dcm = dirs_to_dcm
 
     def __getitem__(self, idx):
         '''
@@ -103,7 +111,20 @@ class CTDicomSlices(Dataset):
                 sample = self.img_and_mask_transform(image=slices, mask=mask)
                 slices, mask = sample['image'], sample['mask']
 
+        if self.save_masks_path is not None:
+            save_mask(img_path, slice_n)
+            
         return slices.astype("float32"), mask.astype("float32"), img_path, slice_n
+
+    def save_mask(self, img_path :str, slice_n :int):
+        subdirs = []
+        current_path = os.path.dirname(img_path)
+        for i in range(self.dirs_to_dcm):
+            current_path, current_dir = os.path.split(current_path)
+            subdirs.insert(0, current_dir)
+
+        save_path = "{}/{}/{}.dcm".format(self.save_masks_path, "/".join(subdirs) ,slice_n)
+
 
     def crop_image_only_outside(self, img :np.array, original_mask :np.array = None, tol :int = 0):
         '''
