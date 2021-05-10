@@ -2,10 +2,13 @@ import sys
 import matplotlib.pyplot as plt
 
 sys.path.append('data/')
+sys.path.append('preprocessing_scripts/')
+sys.path.append('.')
 
 from Felz_crop_and_masks import create_dataset
 from CTDataSet import CTDicomSlicesFelzSaving
 from DatasetPreprocessor import DatasetPreprocessor
+from constants import Constants
 
 '''
 This script visualizes masks created with Felzenszwalb segmentation and super pixels after
@@ -38,7 +41,7 @@ def plot_slices_and_mask(image, mask, super_pixels = None):
 
 if __name__ == '__main__':
     ds = create_dataset()
-    dp = DatasetPreprocessor(ds, '/mnt/g/thesis/ct_only_cleaned', num_workers = 1,
+    dp = DatasetPreprocessor(ds, Constants.ct_only_cleaned, num_workers = 1,
                              shuffle = True)
 
     while True:

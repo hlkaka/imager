@@ -21,7 +21,12 @@ sys.path.append('models/')
 from UNet_L import UNet
 from UNet_mateuszbuda import UNet_m
 
+#sys.path.append('.')
+from constants import Constants
+
 from torchsummary import summary
+
+# Consider removing sys.path.append and trying to refer to scripts as data.CTDataSet etc
 
 # Assumes holdout was done
 # Train/val/test split
@@ -30,8 +35,8 @@ from torchsummary import summary
 # Create model
 # Run model
 
-dataset = "../organized_dataset_2"
-model_output_parent = "../model_runs"
+dataset = Constants.organized_dataset_2
+model_output_parent = Constants.model_outputs
 
 val_frac = 0.112
 test_frac = 0.112
@@ -110,7 +115,7 @@ def get_datasets(_same_image_all_channels, model_dir = None, new_ds_split = True
 
 def get_batch_size():
     # Setup trainer
-    if torch.cuda.is_available():
+    if Constants.n_gpus > 0:
         batch_size = gpu_batch_size    
     else:
         batch_size = cpu_batch_size
@@ -119,9 +124,9 @@ def get_batch_size():
 
 def train_model(model, model_dir):
     # Setup trainer
-    if torch.cuda.is_available():
+    if Constants.n_gpus > 0:
         #trainer = Trainer(gpus=2, distributed_backend='ddp', precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
-        trainer = Trainer(gpus=1, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
+        trainer = Trainer(gpus=Constants.n_gpus, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
         trainer = Trainer(gpus=0, default_root_dir=model_dir, max_epochs=n_epochs)
 

@@ -94,6 +94,7 @@ class UNet(pl.LightningModule):
         # Logs
         #tensorboard_logs = {'val_loss': loss}
         return {'val_loss': loss} #, 'log': tensorboard_logs}
+        #self.log('validation_loss', loss, on_step=True, on_epoch=True, sync_dist=True)
 
     def validation_epoch_end(self, outputs):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()

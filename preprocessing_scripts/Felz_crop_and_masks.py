@@ -2,10 +2,12 @@ from torchvision import transforms
 
 import sys
 sys.path.append('data/')
+sys.path.append('.')
 
 from CTDataSet import CTDicomSlicesFelzSaving
 from CustomTransforms import Window
 from CustomTransforms import Imagify
+from constants import Constants
 
 from DatasetPreprocessor import DatasetPreprocessor
 
@@ -16,7 +18,7 @@ masks with super pixel segments. Saves all to given file.
 '''
 
 def create_dataset():
-    dataset = '/mnt/g/thesis/ct_only_filtered_2'
+    dataset = Constants.ct_only_filtered2
     dcm_list = CTDicomSlicesFelzSaving.generate_file_list(dataset, dicom_glob='*/*/*/*.dcm')
     
     prep = transforms.Compose([Window(50, 250), Imagify(50, 250)])
@@ -26,7 +28,7 @@ def create_dataset():
 
 if __name__ == '__main__':
     ds = create_dataset()
-    dp = DatasetPreprocessor(ds, '/mnt/g/thesis/ct_only_cleaned', num_workers = 1,
+    dp = DatasetPreprocessor(ds, Constants.ct_only_cleaned, num_workers = 1,
                              shuffle = True)
                              
     dp.process_dataset()
