@@ -77,4 +77,4 @@ class DatasetPreprocessor():
         writer.Execute(output_dcm)
 
         writer.SetFileName("{}/{}.png".format(mask_dir, slice_n))
-        writer.Execute(sitk.GetImageFromArray(mask.type(torch.uint8) * 255))
+        writer.Execute(sitk.GetImageFromArray(mask.type(torch.uint8)))
