@@ -14,7 +14,7 @@ from skimage.segmentation import felzenszwalb, chan_vese
 import sys
 sys.path.append('data/')
 
-from CTDataSet import CTDicomSlices
+from CTDataSet import CTDicomSlices, CTDicomSlicesFelzenszwalb
 from CustomTransforms import Window
 from CustomTransforms import Imagify
 from CustomTransforms import TorchFunctionalTransforms as TFT
@@ -75,7 +75,7 @@ def cpu_transforms(dcm_list) -> DataLoader:
             additional_targets={"image1": 'image', "mask1": 'mask'})
     #prep = get_preprocessing_fn('resnet34', pretrained='imagenet')
 
-    ctds = ctds = CTDicomSlices(dcm_list, shuffle=True, resize_transform=resize_transform, preprocessing=prep, transform = img_trfm, n_surrounding=0, trim_edges=False, self_supervised_mask=True)
+    ctds = ctds = CTDicomSlicesFelzenszwalb(dcm_list, resize_transform=resize_transform, preprocessing=prep, transform = img_trfm, n_surrounding=0, trim_edges=False)
 
     dl = DataLoader(ctds, batch_size=1, num_workers = 0, shuffle=True)
 
@@ -102,7 +102,7 @@ def gpu_transforms(dcm_list) -> DataLoader:
     msk_trfm = A.Compose([A.Resize(256, 256)],
             additional_targets={"image1": 'image', "mask1": 'mask'})
 
-    ctds = CTDicomSlices(dcm_list, shuffle=True, img_and_mask_transform = msk_trfm, n_surrounding=0, trim_edges=False, self_supervised_mask=True)#, preprocessing = prep)
+    ctds = CTDicomSlices(dcm_list, img_and_mask_transform = msk_trfm, n_surrounding=0, trim_edges=False, self_supervised_mask=True)#, preprocessing = prep)
     
     dl = DataLoader(ctds, batch_size=1, num_workers = 0, shuffle=True)
 
@@ -114,7 +114,6 @@ def get_felzenszwalb(slices :np.array) -> np.array :
     mid_slice = slices.shape[0] // 2
 
     segments = felzenszwalb(slices[mid_slice,:,:], scale=150, sigma=0.7, min_size=50)
-    #segments = chan_vese(slices[mid_slice,:,:], mu=0.1)
 
     selected_pixels = np.array([[5/16, 5/16], [5/16, 11/16], [11/16, 5/16], [11/16, 11/16]]) @ np.array([[256, 0], [0, 256]])    # don't hard code image resolution
     selected_pixels = selected_pixels.astype('int32')

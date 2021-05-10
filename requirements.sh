@@ -16,12 +16,12 @@ pip install --upgrade pip
 # 1.6 CUDA 10.2+
 pip install torch torchvision
 
-pip install -U tqdm segmentation-models-pytorch pytorch-lightning albumentations SimpleITK jupyterlab torchsummary
+pip install -U tqdm segmentation-models-pytorch pytorch-lightning albumentations SimpleITK jupyterlab torchsummary unidecode
 
 pip install -U --no-deps Kornia
 
-wget https://hnscc-ds.nyc3.cdn.digitaloceanspaces.com/organized_dataset_2.zip
+#wget https://hnscc-ds.nyc3.cdn.digitaloceanspaces.com/organized_dataset_2.zip
 
-echo "Unzipping downloaded dataset"
+#echo "Unzipping downloaded dataset"
 
-unzip -q organized_dataset_2.zip
+#unzip -q organized_dataset_2.zip

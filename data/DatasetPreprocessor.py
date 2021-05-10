@@ -3,29 +3,17 @@ import numpy as np
 import torch
 import os
 import SimpleITK as sitk
+from unidecode import unidecode
 
 from torch.utils.data import DataLoader
 
 class DatasetPreprocessor():
-    def __init__(self, dataset, output_dir :str, x_dim :int = 256, y_dim :int = 256,
-                 num_workers :int = 1, super_pixels :np.array = None):
+    def __init__(self, dataset, output_dir :str, num_workers :int = 1, shuffle = True):
         '''
-        dirs_to_dcm: specifies how many dirs need to be traversed from dataset directory to get to DICOMs
-        for main dataset, this should be 2. for pre-training dataset, this should be 1.
         this is used only for saving masks
-        x_dim = size of x dimension in pixels
-        y_dim = size of y dimension in pixels
         '''
-        self.x_dim = x_dim
-        self.y_dim = y_dim
-
         self.output_dir = output_dir
-        self.dl = DataLoader(dataset, batch_size=1, num_workers=num_workers)
-        
-        if super_pixels is None:
-            self.super_pixels = np.array([[5/16, 5/16], [5/16, 11/16], [11/16, 5/16], [11/16, 11/16]])
-        else:
-            self.super_pixels = super_pixels
+        self.dl = DataLoader(dataset, batch_size=1, num_workers=num_workers, shuffle=shuffle)
 
         self.reset_iterator()
 
@@ -33,74 +21,38 @@ class DatasetPreprocessor():
         self.image_iter = iter(self.dl)
 
     def process_next_image(self):
-        image, segments, img_path, slice_n = next(self.image_iter)
+        ''' Gets the next cropped image and generated mask and saves them '''
+        # Be aware that as output passed through Dataloader, metadata
+        # values all become lists. So open these lists.
+        image, mask, img_path, slice_n, segments, metadata, super_pixels = next(self.image_iter)
 
+        #print(img_path)
+
+        if image is None:
+            return None, None, None 
+
+        # Get rid of dim 1 (channel size)
         image = image.squeeze()
-        segments = segments.squeeze() # Get rid of dim 1 (channel size)
+        segments = segments.squeeze() 
+        mask = mask.squeeze()
+        super_pixels = super_pixels.squeeze()
+
         slice_n = int(slice_n)
 
-        v_dims = self.get_crops(segments, 1)
-        h_dims = self.get_crops(segments, 0)
+        self.save_image_and_mask(image, mask, img_path[0], slice_n, metadata)
 
-        if v_dims is None or h_dims is None:
-            return None, None
-
-        image = image[v_dims[0]:v_dims[1], h_dims[0]:h_dims[1]]
-        segments = segments[v_dims[0]:v_dims[1], h_dims[0]:h_dims[1]]
-
-        mask = self.generate_mask(segments)
-
-        self.save_image_and_mask(image, mask, img_path[0], slice_n)
-
-        return image, mask
+        return image, mask, super_pixels
 
     def process_dataset(self):
+        ''' Processes the entire dataset with a tqdm progress bar '''
         n_images = len(self.image_iter)
         with tqdm.tqdm(total=n_images) as progress_bar:
             for _ in range(n_images):
                 self.process_next_image()
                 progress_bar.update(1)
 
-    def get_crops(self, segments, dim, step = 1, buffer = 20, bg_segment=0):
-        '''
-        Uses the background segment of felzenswalb to strip the vertical and horizontal edges of images.
-        segments: felzenswalb segmentation
-        bg_segment: usually 0. The segment label assigned to background.
-        dim: dimension to act on. 1 strips top and bottom, 0 strips left and right.
-        step: how many pixels to scan every step. Default is 3
-        buffer: how many pixels to leave before stripping
-        '''
-        mid_line = segments.shape[dim] // 2
-
-        if dim == 0:
-            mid_line_pixels = segments[mid_line]
-        elif dim == 1:
-            mid_line_pixels = segments[:,mid_line]
-
-        gaps = []
-
-        for i in range(0, segments.shape[dim], step):
-            p = mid_line_pixels.squeeze()[i]
-            if p != bg_segment:
-                if len(gaps) > 0 and gaps[-1][1] == i:
-                    gaps[-1][1] = i + step
-                else:
-                    gaps.append([i, i+step])
-        
-        gap_lengths = [g[1] - g[0] for g in gaps]
-
-        if len(gap_lengths) == 0:
-            return None
-
-        index_max_gap = gap_lengths.index(max(gap_lengths))
-        max_gap = gaps[index_max_gap]
-
-        # Clip it to image dimensions, so we dont have negative indices or indx > dim
-        max_gap = [max(0, max_gap[0] - buffer), min(max_gap[1] + buffer, segments.shape[dim])]
-
-        return max_gap
-
-    def save_image_and_mask(self, image, mask, img_path :str, slice_n :int):
+    def save_image_and_mask(self, image, mask, img_path :str, slice_n :int, metadata :dict):
+        ''' Saves the image and mask. For DICOM, metadata is preserved '''
         subdirs = []
         full_study_dir, img_name = os.path.split(img_path)
         ds_dir, study_name = os.path.split(full_study_dir)
@@ -113,31 +65,16 @@ class DatasetPreprocessor():
         os.makedirs(mask_dir, exist_ok=True)
 
         writer = sitk.ImageFileWriter()
-        # -4 to drop .dcm and add .png
-        writer.SetFileName("{}/{}.png".format(dcm_dir, slice_n))
-        writer.Execute(sitk.GetImageFromArray(image.type(torch.uint8)))
+
+        # DICOMS need the metadata dictionary
+        writer.SetFileName("{}/{}.dcm".format(dcm_dir, slice_n))
+        output_dcm = sitk.GetImageFromArray(image.type(torch.uint8))
+        for k in metadata:
+            # Dataloader converts all values to lists. Need to reverse with [0]
+            # SITK doesn't support non-ASCII. So remove those characters
+
+            output_dcm.SetMetaData(k, unidecode(metadata[k][0]))
+        writer.Execute(output_dcm)
 
         writer.SetFileName("{}/{}.png".format(mask_dir, slice_n))
-        writer.Execute(sitk.GetImageFromArray(mask))
-
-    def generate_mask(self, segments :np.array) -> np.array :
-        '''
-        Returns a self suprevised mask of the given image.
-        Needs to be run after window and imagify
-        '''
-
-        img_x_dim = segments.shape[0]
-        img_y_dim = segments.shape[1]
-
-        selected_pixels = self.super_pixels @ np.array([[img_x_dim, 0], [0, img_y_dim]])    # don't hard code image resolution
-        selected_pixels = selected_pixels.astype('int32')
-
-        selected_segments = [segments[tuple(sp)] for sp in selected_pixels]
-
-        pre_mask = [segments == ss for ss in selected_segments]
-
-        mask = pre_mask[0].type(torch.uint8)
-        for i in range(1, len(pre_mask)):
-            mask = torch.maximum(mask, (i + 1) * pre_mask[i].type(torch.uint8))
-
-        return mask # convert to int mask
+        writer.Execute(sitk.GetImageFromArray(mask.type(torch.uint8) * 255))

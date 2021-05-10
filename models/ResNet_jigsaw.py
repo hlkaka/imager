@@ -1,102 +1,81 @@
-import segmentation_models_pytorch as smp
 import pytorch_lightning as pl
-from segmentation_models_pytorch.encoders import resnet
-import torch.nn.functional as F
 import torch
 from torch.utils.data import DataLoader
-import kornia
-from loss import DiceLoss2
-from utils import Utils
+import torch.nn as nn
+
+# For permutation generation with maximal Hamming distance
+# https://github.com/bbrattoli/JigsawPuzzlePytorch
 
 class UNet(pl.LightningModule):
 
-    def __init__(self, datasets, backbone, encoder_weights :str = None,
-                 jigsaw_size :int = 9, activation :str = 'softmax', batch_size :int = 32,
-                 lr = 0.0001, dl_workers = 8, WL :int = 50, WW :int = 200, gaussian_noise_std = 0,
-                 degrees=0, translate=(0, 0), scale=(1, 1), shear=(0, 0), max_pix = 255,
-                 mean = [0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], optimizer_params = None, in_channels=1):
+    def __init__(self, datasets, backbone = 'resnet34', encoder_weights :str = None,
+                 jigsaw_size :int = 9, batch_size :int = 32, lr = 0.0001, dl_workers = 8,
+                 optimizer_params = None, in_channels=1, ResNet_out_dim = 1000,
+                 num_permutations = 1000):
+
         super().__init__()
         '''
         datasets: train, test, val datasets
-        backbone: object of type resnet. for example, torchvision.models.resnet34
+        resnet: object of type resnet. for example, torchvision.models.resnet34
         '''
-
-        self.backbone = backbone
-        self.
-
-        self.smp_unet = smp.Unet(backbone, encoder_weights = encoder_weights, classes = classes, activation = activation, in_channels=in_channels)
         self.datasets = datasets
+        self.resnet = torch.hub.load('pytorch/vision', backbone, pretrained=False)
+        self.set_single_channel()
+
+        self.fc1 = nn.Linear(ResNet_out_dim * jigsaw_size, 4096)
+        self.fc2 = nn.Linear(4096, num_permutations)
+
         self.batch_size = batch_size
         self.lr = lr
         self.dl_workers = dl_workers
+        self.ResNet_out_dim = ResNet_out_dim
+        self.jigsaw_size = jigsaw_size
 
-        self.loss = DiceLoss2()
-        self.WW = WW
-        self.WL = WL
-        self.gaussian_noise_std = gaussian_noise_std
+        self.loss = nn.CrossEntropyLoss()
 
-        # Augmentations
-        self.ra = kornia.augmentation.RandomAffine(degrees=30, translate=(0.2, 0.2), scale=(0.8, 1.3), shear=(7, 7))
-        self.rf = kornia.augmentation.RandomHorizontalFlip()
-
-        mean = torch.tensor(mean)
-        mean = mean.unsqueeze(0).unsqueeze(2).unsqueeze(3)
-
-        std = torch.tensor(std)
-        std = std.unsqueeze(0).unsqueeze(2).unsqueeze(3)
-
-        # This approach is necessary so lightning knows to move this tensor to appropriate device
-        self.register_buffer("mean", mean)
-        self.register_buffer("std", std)
-
-        self.max_pix = max_pix # pixel range is from 0 to this value
-
-        self.optimizer_params = optimizer_params
-
-        # Hack to keep track of input channels
-        self.in_channels = in_channels
+    def set_single_channel(self):
+        # ResNet normally takes 3 channels
+        # This changes the first convolution layer to the correct number (usually just 1 channel)
+        for module in self.resnet.modules():
+            if isinstance(module, nn.Conv2d):
+                break
+        
+        module.in_channels = in_channels
 
     def forward(self, x):
-        #x = x.permute(0, 3, 1, 2)
-        # Assume batch is of shape (B, C, H, W)
-        if self.in_channels == 1:    # Hack to limit to single input
-            return self.smp_unet(x[:,1,:,:].unsqueeze(1))
-        else:
-            return self.smp_unet(x)
+        # 9 siamese ennead
+        # [batch, tile# [0-8], H, W]
+        out = torch.empty(self.ResNet_out_dim, device=self.device, dtype=x.dtype)
+        for i in range(self.jigsaw_size):
+            # Concatenating all the tiles
+            out[i:i+self.ResNet_out_dim] = self.resnet(x[:,i,:,:])
+
+        out = self.fc1(out)
+        return self.fc2(out)
 
     def training_step(self, batch, batch_idx):
-        images, masks, _, _ = batch
-
-        images, masks = Utils.preprocessing(images, masks, self.WL, self.WW)
-
-        images, masks = Utils.do_train_augmentations(images, masks,
-                self.gaussian_noise_std, self.device, self.ra, self.rf)
-
-        images.div_(self.max_pix).sub_(self.mean).div_(self.std)
+        images, perms = batch
 
         y_hat = self(images)
 
         # loss dim is [batch, 1, img_x, img_y]
         # need to get rid of the second dimension so
         # size matches with mask
-        loss = self.loss(y_hat[:,0,:,:], masks)
+        loss = self.loss(y_hat, perms)
 
         # Logs
         #tensorboard_logs = {'train_loss': loss}
         return {'loss': loss} #, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_nb):
-        images, masks, _, _ = batch
+        images, perms = batch
 
-        images, masks = Utils.preprocessing(images, masks, self.WL, self.WW)
-        images.div_(self.max_pix)
-        images.sub_(self.mean).div_(self.std)
         y_hat = self(images)
 
         # loss dim is [batch, 1, img_x, img_y]
         # need to get rid of the second dimension so
         # size matches with mask
-        loss = self.loss(y_hat[:,0,:,:], masks)
+        loss = self.loss(y_hat, perms)
 
         # Logs
         #tensorboard_logs = {'val_loss': loss}
@@ -109,18 +88,14 @@ class UNet(pl.LightningModule):
         return d
 
     def test_step(self, batch, batch_nb):
-        images, masks, _, _ = batch
-
-        images, masks = Utils.preprocessing(images, masks, self.WL, self.WW)
-
-        images.div_(self.max_pix).sub_(self.mean).div_(self.std)
+        images, perms = batch
 
         y_hat = self(images)
 
         # loss dim is [batch, 1, img_x, img_y]
         # need to get rid of the second dimension so
         # size matches with mask
-        loss = self.loss(y_hat[:,0,:,:], masks)
+        loss = self.loss(y_hat, perms)
 
         # Logs
         #tensorboard_logs = {'val_loss': loss}

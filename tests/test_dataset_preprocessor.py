@@ -1,72 +1,56 @@
 import sys
 import matplotlib.pyplot as plt
-import numpy as np
-from torchvision import transforms
 
 sys.path.append('data/')
 
-from CTDataSet import CTDicomSlices
-from CustomTransforms import Window
-from CustomTransforms import Imagify
-from CustomTransforms import TorchFunctionalTransforms as TFT
+from Felz_crop_and_masks import create_dataset
+from CTDataSet import CTDicomSlicesFelzSaving
 from DatasetPreprocessor import DatasetPreprocessor
-import albumentations as A
 
-def create_dataset(dcm_list):
-    prep = transforms.Compose([Window(50, 250), Imagify(50, 250)])
-    
-    resize_transform = A.Compose([A.Resize(512, 512)])
+'''
+This script visualizes masks created with Felzenszwalb segmentation and super pixels after
+Felz cropping.
+'''
 
-    _msk_trfm = [A.HorizontalFlip()]
-    img_trfm = A.Compose(_msk_trfm + [A.GaussNoise()])
-
-    ctds = CTDicomSlices(dcm_list, shuffle=True, classic_segments=True,
-            resize_transform=resize_transform, preprocessing=prep,
-            transform = img_trfm, n_surrounding=0, trim_edges=False)
-
-    return ctds
-
-def plot_slices_and_mask(image, mask):
-    mask = mask * 63
+def plot_slices_and_mask(image, mask, super_pixels = None):
+    mask = mask * 51
 
     fig = plt.figure(figsize=(15,15))
     cols, rows = 2, 1
 
     fig.add_subplot(rows, cols, 1)
-    plt.imshow(image)
+    plt.imshow(image, cmap='gray')
     plt.title("Image")
+    if super_pixels is not None:
+        for s in super_pixels:
+            plt.plot(s[1], s[0], 'or')
+            print("({}, {})".format(s[0], s[1]))
 
-    
     fig.add_subplot(rows, cols, 2)
     plt.imshow(mask, cmap='gray')
+    if super_pixels is not None:
+        for s in super_pixels:
+            plt.plot(s[1], s[0], 'or')
+
     plt.title("Mask")
     
     plt.show()
 
 if __name__ == '__main__':
-    only_positive = True
-    dataset = 'E:/thesis/ct_only_filtered_2'
-    dcm_list = CTDicomSlices.generate_file_list(dataset, dicom_glob='*/*/*/*.dcm')
+    ds = create_dataset()
+    dp = DatasetPreprocessor(ds, '/mnt/g/thesis/ct_only_cleaned', num_workers = 1,
+                             shuffle = True)
 
-    ds = create_dataset(dcm_list)
+    while True:
+        image, mask, super_pixels = dp.process_next_image()
 
-    dp = DatasetPreprocessor(ds, 'E:/thesis/ct_only_cleaned', 512, 512)
+        if image is None or mask is None:
+            continue
 
-    run_all = True
+        plot_slices_and_mask(image.cpu().numpy(), mask.cpu().numpy(), super_pixels)
 
-    if run_all:
-        dp.process_dataset()
-    else:
-        while True:
-            image, mask = dp.process_next_image()
+        print("Type 'q' to quit.")
+        inp = input()
 
-            if image is None or mask is None:
-                continue
-
-            plot_slices_and_mask(image.cpu().numpy(), mask.cpu().numpy())
-
-            print("Type 'q' to quit.")
-            inp = input()
-
-            if inp == 'q':
-                break
+        if inp == 'q':
+            break

@@ -1,0 +1,32 @@
+from torchvision import transforms
+
+import sys
+sys.path.append('data/')
+
+from CTDataSet import CTDicomSlicesFelzSaving
+from CustomTransforms import Window
+from CustomTransforms import Imagify
+
+from DatasetPreprocessor import DatasetPreprocessor
+
+'''
+This script uses Felzenszwalb segmentation to crop images and then
+also uses Felzenszwalb segementation on the cropped images to create
+masks with super pixel segments. Saves all to given file.
+'''
+
+def create_dataset():
+    dataset = '/mnt/g/thesis/ct_only_filtered_2'
+    dcm_list = CTDicomSlicesFelzSaving.generate_file_list(dataset, dicom_glob='*/*/*/*.dcm')
+    
+    prep = transforms.Compose([Window(50, 250), Imagify(50, 250)])
+    ctds = CTDicomSlicesFelzSaving(dcm_list, preprocessing=prep, felz_crop=True)
+
+    return ctds
+
+if __name__ == '__main__':
+    ds = create_dataset()
+    dp = DatasetPreprocessor(ds, '/mnt/g/thesis/ct_only_cleaned', num_workers = 1,
+                             shuffle = True)
+                             
+    dp.process_dataset()
