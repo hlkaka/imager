@@ -7,6 +7,10 @@ import random
 from skimage.segmentation import felzenszwalb
 from holdout import read_list, write_list
 import albumentations as A
+import sys
+
+sys.path.append('.')
+from constants import Constants
 
 class CTDicomSlicesMaskless(Dataset):
     '''
@@ -233,8 +237,6 @@ class CTDicomSlices(CTDicomSlicesMaskless):
         return aggregate_mask
 
 class CTDicomSlicesFelzenszwalb(CTDicomSlices):
-    DEFAULT_FELZ_PARAMS = {'scale':150, 'sigma':0.6, 'min_size':50}
-
     '''
     Loads CT stacks and creates felzenswalb segmentations
     '''
@@ -274,7 +276,7 @@ class CTDicomSlicesFelzenszwalb(CTDicomSlices):
 
         self.felz_params = felz_params
         if self.felz_params is None:
-            self.felz_params = CTDicomSlicesFelzenszwalb.DEFAULT_FELZ_PARAMS
+            self.felz_params = Constants.default_felz_params
 
         self.felz_crop = felz_crop
 
@@ -312,28 +314,22 @@ class CTDicomSlicesFelzenszwalb(CTDicomSlices):
 
         return mask, selected_pixels # convert to int mask
 
-    def apply_crops_and_transforms(self, slices):
+    def apply_crops(self, slices):
         '''
-        Performs all crops and transforms.
-        Basically, this function is wrapper outside apply_all_transforms in order to properly
-        add felz cropping when required as this would slightly change the order of some of the
-        transforms.
-        slices must be (H x W x # slices)
+        Performs all crops.
+        If return_preprocessed is true, the function will return a cropped pre-processed image
+        Otherwise, it will return a non-pre_processed image
         '''
-        if self.felz_crop:
-            if self.preprocessing is not None:
-                # Typically window
-                slices = self.preprocessing(slices)
-
-            segments = self.get_felzenszwalb(slices, CTDicomSlicesFelzenszwalb.DEFAULT_FELZ_PARAMS)
-            
-
-            segments = np.expand_dims(segments, 2)
-            slices, _ = self.segmented_crop(slices, segments)
-            slices = self.apply_all_transforms(slices, exclude_prep=True)
+        if self.preprocessing is not None:
+            # Typically window
+            slices_prep = self.preprocessing(slices)
         else:
-            slices = self.apply_all_transforms(slices, exclude_prep=False)
+            slices_prep = slices
 
+        segments_for_cropping = self.get_felzenszwalb(slices_prep, Constants.default_felz_params)
+        segments_for_cropping = np.expand_dims(segments_for_cropping, 2)
+
+        slices, _ = self.segmented_crop(slices, segments_for_cropping)
         return slices
 
     def __getitem__(self, idx):
@@ -343,7 +339,11 @@ class CTDicomSlicesFelzenszwalb(CTDicomSlices):
         Shape of slices is H x W x # slices
         '''
         slices, img_path, slice_n = super().get_images(idx)
-        slices = self.apply_crops_and_transforms(slices)
+
+        if self.felz_crop:
+            slices = self.apply_crops(slices, return_preprocessed=True)
+        
+        slices = self.apply_all_transforms(slices)
 
         # Segment again after the image is transformed properly
         # This is important as transforms can include resizing
@@ -423,13 +423,21 @@ class CTDicomSlicesFelzSaving(CTDicomSlicesFelzenszwalb):
     '''
     def __init__(self, dcm_file_list :list, transform = None, preprocessing = None, \
                 trim_edges :bool = False, resize_transform = None, \
-                super_pixels = None, felz_params :dict = None, felz_crop = False):
+                super_pixels = None, felz_params :dict = None, felz_crop = False,
+                preprocess_output = False):
+        '''
+        Preprocess then segment then crop.
+        The resultant image can skip pre_processing (i.e. skip windowing) if pre_process_output is False
+        Otherwise, windowed images will be returned
+        '''
         # img_and_mask_transform was removed as scale/rotate transforms would remove the learnable information
         # regarding the positions of super pixels in the image
 
         super().__init__(dcm_file_list, transform = transform, preprocessing=preprocessing,
                         n_surrounding=0, trim_edges=trim_edges, resize_transform=resize_transform,
                         super_pixels=super_pixels, felz_params=felz_params, felz_crop=felz_crop)
+
+        self.preprocess_output = preprocess_output
 
     def image_with_metadata(self, img_path :str, slice_n :int):
         '''
@@ -461,14 +469,26 @@ class CTDicomSlicesFelzSaving(CTDicomSlicesFelzenszwalb):
                   re-segment transformed image, create mask
         Shape of slices is H x W x # slices
         '''
+
+        '''
+        1. Window
+        2. Segment-1
+        3. Felz crop original image
+        4. Transform Felz cropped original
+        5. Segment-2
+        6. Generate mask
+        '''
         img_path, slice_n = self.get_path_slice_num(idx)
         image, metadata = self.image_with_metadata(img_path, slice_n)
 
         # We want all transforms on the image before Felzenswalb and mask generation
         # However, we still want to return the original image with only the resize transform
-        image = self.apply_crops_and_transforms(image)
-        segments = self.get_felzenszwalb(image, self.felz_params)
-        mask, super_pixels = self.get_mask(segments)
+        if self.felz_crop:
+            image = self.apply_crops(image)   # Does 1-3
+
+        image_transformed = self.apply_all_transforms(image)   # Does 4
+        segments = self.get_felzenszwalb(image_transformed, self.felz_params) # Does 5
+        mask, super_pixels = self.get_mask(segments) # Does 6
 
         return image.astype("float32"), mask.astype("float32"), \
                 img_path, slice_n, segments.astype("float32"), metadata, super_pixels

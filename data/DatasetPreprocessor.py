@@ -26,7 +26,7 @@ class DatasetPreprocessor():
         # values all become lists. So open these lists.
         image, mask, img_path, slice_n, segments, metadata, super_pixels = next(self.image_iter)
 
-        #print(img_path)
+        print(img_path)
 
         if image is None:
             return None, None, None 
@@ -68,7 +68,7 @@ class DatasetPreprocessor():
 
         # DICOMS need the metadata dictionary
         writer.SetFileName("{}/{}.dcm".format(dcm_dir, slice_n))
-        output_dcm = sitk.GetImageFromArray(image.type(torch.uint8))
+        output_dcm = sitk.GetImageFromArray(image.type(torch.int16))  # DICOMS are 16-bit integers
         for k in metadata:
             # Dataloader converts all values to lists. Need to reverse with [0]
             # SITK doesn't support non-ASCII. So remove those characters

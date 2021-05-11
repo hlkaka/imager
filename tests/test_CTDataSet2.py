@@ -14,6 +14,9 @@ from CTDataSet import CTDicomSlices, CTDicomSlicesJigsaw
 from CustomTransforms import Window
 from CustomTransforms import Imagify
 
+sys.path.append('.')
+from constants import Constants
+
 def prompt_for_quit():
     print("Type 'q' to quit.")
     inp = input()
@@ -58,9 +61,8 @@ def show_jigsaw_dataset(dcm_list):
         prompt_for_quit()
 
 if __name__ == '__main__':
-    #dataset = '/mnt/g/thesis/ct_only_cleaned'
-    dataset = '/mnt/g/thesis/ct_only_filtered_2/head-neck-radiomics'
+    dataset = Constants.ct_only_cleaned
     dcm_list = CTDicomSlices.generate_file_list(dataset,
-        dicom_glob='/*/*.dcm')
+        dicom_glob='/*/*/dicoms/*.dcm')
 
     show_jigsaw_dataset(dcm_list)

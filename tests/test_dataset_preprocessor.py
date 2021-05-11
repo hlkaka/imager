@@ -46,7 +46,7 @@ if __name__ == '__main__':
 
     while True:
         image, mask, super_pixels = dp.process_next_image()
-
+        
         if image is None or mask is None:
             continue
 
