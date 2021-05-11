@@ -27,8 +27,11 @@ def create_dataset():
     return ctds
 
 if __name__ == '__main__':
+    n_workers = input("Enter number of works (usually = num CPU cores) - no error checking:")
+    n_workers = int(n_workers)
+
     ds = create_dataset()
-    dp = DatasetPreprocessor(ds, Constants.ct_only_cleaned, num_workers = 1,
+    dp = DatasetPreprocessor(ds, Constants.ct_only_cleaned, num_workers = n_workers,
                              shuffle = True)
                              
     dp.process_dataset()
