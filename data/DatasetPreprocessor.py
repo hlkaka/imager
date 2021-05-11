@@ -26,8 +26,6 @@ class DatasetPreprocessor():
         # values all become lists. So open these lists.
         image, mask, img_path, slice_n, segments, metadata, super_pixels = next(self.image_iter)
 
-        print(img_path)
-
         if image is None:
             return None, None, None 
 
