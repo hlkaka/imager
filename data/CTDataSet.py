@@ -8,6 +8,7 @@ from skimage.segmentation import felzenszwalb
 from holdout import read_list, write_list
 import albumentations as A
 import sys
+from tqdm import trange
 
 sys.path.append('.')
 from constants import Constants
@@ -84,7 +85,10 @@ class CTDicomSlicesMaskless(Dataset):
         return img_path, slice_n
 
     def get_images(self, idx :int):
-        ''' Reads the images '''
+        '''
+        Reads the images
+        If single_image is True, ignores self.n_surrounding
+        '''
         img_path, slice_n = self.get_path_slice_num(idx)
 
         slices = self.get_n_slices(img_path, slice_n, self.n_surrounding)
@@ -144,6 +148,27 @@ class CTDicomSlicesMaskless(Dataset):
 
     def __len__(self):
         return len(self.dcm_list)
+
+    def calculate_ds_mean_std(self):
+        '''
+        Returns the mean and standard deviation for pixel values.
+        Applies the supplied transformations.
+        '''
+        # Code from __getitem__ is replicated here to resolve self. vs super(). considerations
+        # in inherited classes and to ensure single slices are returned each time
+        sum_means = 0
+        sum_stds = 0
+
+        print('Calculating Dataset Means')
+
+        for idx in trange(self.__len__()):
+            slices, _, _ = self.get_images(idx)
+            slices = self.apply_all_transforms(slices)
+            
+            sum_means = sum_means + np.mean(slices)
+            sum_stds = sum_stds + np.mean(slices)
+
+        return sum_means/self.__len__(), sum_stds/self.__len__()
 
     @staticmethod
     def generate_file_list(ds_dir :str, dicom_glob :str = '/*/dicoms/*.dcm'):
