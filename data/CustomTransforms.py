@@ -75,3 +75,15 @@ class Imagify():
         img = img / (self.max_hu - self.min_hu) * self.max_pix + self.min_pix
 
         return img.astype(self.dtype)
+
+class Normalize():
+    '''
+    Normalizes the images using the given mean and std.
+    For the pretraining set, mean 61.02492904663086   -- STD: 78.31950378417969
+    '''
+    def __init__(self, mean = 61.0249, std = 78.3195):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, img):
+        return (img - self.mean) / self.std

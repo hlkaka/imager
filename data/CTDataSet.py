@@ -5,10 +5,13 @@ import SimpleITK as sitk
 import numpy as np
 import random
 from skimage.segmentation import felzenszwalb
-from holdout import read_list, write_list
+from .holdout import read_list, write_list
 import albumentations as A
 import sys
 from tqdm import trange
+from scipy.spatial.distance import cdist
+import itertools
+import torch
 
 sys.path.append('.')
 from constants import Constants
@@ -525,7 +528,8 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
     def __init__(self, dcm_file_list :list, transform = None, preprocessing = None,
                 trim_edges :bool = False, resize_transform = None, sqrt_n_jigsaw_pieces :int = 3,
                 min_img_size :int = 225, tile_size :int = 64, normalize_tiles = True,
-                max_pixel_value = 1.0, return_tile_coords = False):
+                max_pixel_value = 1.0, return_tile_coords = False, n_shuffles_per_image = 36,
+                perm_path=None, num_perms = 1000):
 
         '''
         min_img_size: dimension of the grid from which tiles will be taken
@@ -550,6 +554,9 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
         self.normalize_tiles = normalize_tiles
         self.max_pixel_value = max_pixel_value
         self.return_tile_coords = return_tile_coords
+        self.n_shuffles_per_image = n_shuffles_per_image
+
+        self.load_permutations(perm_path, num = num_perms, replace = False)
 
     def ensure_min_size(self, image):
         ''' Ensures each dimension of the image is >= self.min_img_size '''
@@ -639,7 +646,91 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
         image, img_path, slice_n = super().__getitem__(idx)
         # coords is for debugging
         tiles, coords = self.generate_tiles(image)
-        return image, img_path, slice_n, tiles, coords
+
+        # normalize each tile
+        #tile_means = np.mean(tiles, axis=(1, 2))
+        #tile_stds = np.std(tiles, axis=(1, 2))
+
+        #tiles = (tiles - tile_means[:,None,None]) / tile_stds[:,None,None]
+        
+        # shuffle tiles
+        # return permutation index as label
+        # repeat n_shuffles_per_image times
+        all_tiles = []
+        all_labels = []
+
+        for i in range(0, self.n_shuffles_per_image):
+            random_perm = random.randint(0, len(self.perms) - 1)
+            all_labels.append(random_perm)
+            all_tiles.append(tiles[self.perms[random_perm]])
+
+        all_tiles = np.stack(all_tiles, axis=0)
+        all_labels = np.array(all_labels)
+
+        return image, img_path, slice_n, tiles, coords, all_tiles.astype("float32"), all_labels.astype("long")
+
+    def generate_permutations(self, num):
+        '''
+        Generates n number of n_tiles x n_tiles permutations with maximum Hamming distance between them
+        Code is from https://github.com/bbrattoli/JigsawPuzzlePytorch/blob/master/select_permutations.py
+        '''
+        n_tiles = self.snjp ** 2
+
+        P_hat = np.array(list(itertools.permutations(list(range(n_tiles)), n_tiles)))
+        n = P_hat.shape[0]
+        
+        for i in trange(num):
+            if i==0:
+                j = np.random.randint(n)
+                P = np.array(P_hat[j]).reshape([1,-1])
+            else:
+                P = np.concatenate([P,P_hat[j].reshape([1,-1])],axis=0)
+            
+            P_hat = np.delete(P_hat,j,axis=0)
+            D = cdist(P,P_hat, metric='hamming').mean(axis=0).flatten()
+            
+            j = D.argmax()
+        
+        return P
+
+    def load_permutations(self, perm_path :str, num :int = 1000, replace = False):
+        '''
+        If the given file exists, loads their permutations.
+        If it does not (or any error exists), then creates new (num) permutations and saves them.
+        If replace is true, then replaces existing permutations anyway.
+        '''
+        if perm_path is not None and replace == False and os.path.exists(perm_path):
+            try:
+                self.perms = np.load(perm_path)
+                print('Permutations file was read at {}'.format(perm_path))
+                return
+            except IOError as err:
+                print('Permutations file cannot be read at {}'.format(perm_path))
+        
+        print('New {} permutations will be created.'.format(num))
+
+        self.perms = self.generate_permutations(num)
+
+        if perm_path is not None:
+            np.save(perm_path, self.perms)
+            print('New permutations were saved at {}.'.format(perm_path))
+
+        return
+
+def jigsaw_training_collate(tuples):
+    '''
+    This custom function stacks tiles such that get each tile as its own image in a batch
+    Instead of adding another indexing dimension
+    i.e. changes (batch_size, perms_per_image, :, :) to (batch_size x perms_per_image, :, :)
+    Ignores all other parameters which are not necessary for training
+    '''
+    perms_per_image = len(tuples[0][5])
+    batch_perms_tiles = [t[5] for t in tuples]
+    tiles = torch.tensor(np.concatenate(batch_perms_tiles, axis=0))
+    all_labels = [t[6] for t in tuples]
+    all_labels = torch.tensor(np.concatenate(all_labels))
+
+    return tiles, all_labels
 
 class DatasetManager():
     def __init__(self, patient_dir :str, train :list, val :list, test :list):

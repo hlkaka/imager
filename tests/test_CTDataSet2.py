@@ -5,16 +5,14 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import glob
 
 import sys
-sys.path.append('data/')
+sys.path.append('./')
 
-from CTDataSet import CTDicomSlices, CTDicomSlicesJigsaw
-from CustomTransforms import Window
-from CustomTransforms import Imagify
+from data.CTDataSet import CTDicomSlices, CTDicomSlicesJigsaw, jigsaw_training_collate
+from data.CustomTransforms import Window, Imagify, Normalize
+from models.ResNet_jigsaw import ResnetJigsaw
 
-sys.path.append('.')
 from constants import Constants
 
 def prompt_for_quit():
@@ -24,17 +22,43 @@ def prompt_for_quit():
     if inp == 'q':
         sys.exit(0)
 
-def show_jigsaw_dataset(dcm_list):
-    prep = transforms.Compose([Window(50, 200), Imagify(50, 200)])
-    ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, trim_edges=True,
-            return_tile_coords=True, normalize_tiles=False, max_pixel_value=255)
+def show_jigsaw_dataset(ctds):
+    '''
+    Shows the jigsaw dataset without collate fn
+    For "deep" debugging
+    '''
     dl = DataLoader(ctds, batch_size=1, num_workers=0, shuffle=True)
 
-    for image, img_path, slice_n, tiles, coords in dl:
-        fig = plt.figure(figsize=(15, 15))
+    for image, img_path, slice_n, tiles, coords, all_tiles, labels in dl:
+        tiles = all_tiles[0, 0]
+        print("Label is: {}".format(labels[0,0]))
+        show_images(ctds, image, img_path, coords, tiles)
+        prompt_for_quit()
+
+def show_jigsaw_training_dataset(ctds):
+    '''
+    Shows the jigsaw dataset without collate fn
+    For "deep" debugging
+    '''
+    dl = DataLoader(ctds, batch_size=2, num_workers=0, shuffle=True, collate_fn=jigsaw_training_collate)
+
+    for all_tiles, labels in dl:
+        tiles = all_tiles[0]
+        print("Label is: {}".format(labels[0]))
+        show_images(ctds, None, None, None, tiles)
+        prompt_for_quit()
+
+
+def show_images(ctds, image, img_path, coords, tiles):
+    fig = plt.figure(figsize=(15, 15))
+
+    if image is not None:
+        image = ctds.ensure_min_size(image.squeeze().numpy())
 
         ax = fig.add_subplot(1, 2, 1)
-        ax.imshow(image.squeeze(), cmap='gray')
+        ax.imshow(image, cmap='gray')
+        ax.set_title(img_path)
+
         for r in coords:
             # reversing list because matplot lib is y-x
             # also, x-axis is from bottom
@@ -44,25 +68,22 @@ def show_jigsaw_dataset(dcm_list):
                                 edgecolor='g', facecolor='none')
             ax.add_patch(p)
 
-        tiles = tiles.detach().numpy().squeeze()
-        puzzle = np.empty((ctds.tile_size * ctds.snjp, ctds.tile_size * ctds.snjp))
+    puzzle = ResnetJigsaw.tiles_to_image(tiles.unsqueeze(0))[0]
 
-        for i in range(ctds.snjp):
-            for j in range(ctds.snjp):
-                tl = [i * ctds.tile_size, j * ctds.tile_size]
-                br = [tl[0] + ctds.tile_size, tl[1] + ctds.tile_size]
+    ax2 = fig.add_subplot(1, 2, 2)
+    ax2.imshow(puzzle, cmap='gray')
 
-                puzzle[tl[0]:br[0], tl[1]:br[1]] = tiles[i * ctds.snjp + j]
-
-        ax2 = fig.add_subplot(1, 2, 2)
-        ax2.imshow(puzzle, cmap='gray')
-
-        fig.show()
-        prompt_for_quit()
+    fig.show()
 
 if __name__ == '__main__':
     dataset = Constants.ct_only_cleaned
     dcm_list = CTDicomSlices.generate_file_list(dataset,
         dicom_glob='/*/*/dicoms/*.dcm')
 
-    show_jigsaw_dataset(dcm_list)
+    prep = transforms.Compose([Window(50, 200), Imagify(50, 200), Normalize(61.0249, 28.3195)])
+    ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, trim_edges=True,
+            return_tile_coords=True, normalize_tiles=False, max_pixel_value=255,
+            perm_path=Constants.default_perms)
+
+    #show_jigsaw_dataset(ctds)
+    show_jigsaw_training_dataset(ctds)

@@ -12,14 +12,14 @@ from torchvision import transforms
 from datetime import datetime
 import torch
 
-sys.path.append('data/')
-from CTDataSet import CTDicomSlices, DatasetManager
-from CustomTransforms import Window
-from CustomTransforms import Imagify
+sys.path.append('.')
+from data.CTDataSet import CTDicomSlices, DatasetManager
+from data.CustomTransforms import Window
+from data.CustomTransforms import Imagify
 
 sys.path.append('models/')
-from UNet_L import UNet
-from UNet_mateuszbuda import UNet_m
+from models.UNet_L import UNet
+from models.UNet_mateuszbuda import UNet_m
 
 #sys.path.append('.')
 from constants import Constants
