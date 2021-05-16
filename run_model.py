@@ -3,16 +3,17 @@ Script to run the model
 '''
 import os
 import sys
+from albumentations.augmentations.transforms import ShiftScaleRotate
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.seed import seed_everything
+from torchvision import transforms
 
 import albumentations as A
 from datetime import datetime
 
 sys.path.append('.')
 from data.CTDataSet import CTDicomSlices, DatasetManager
-from data.CustomTransforms import Window
-from data.CustomTransforms import Imagify
+from data.CustomTransforms import Window, Imagify, Normalize
 
 from models.UNet_L import UNet
 from models.UNet_mateuszbuda import UNet_m
@@ -63,7 +64,6 @@ in_channels = 1  # Hack in UNet_L at the moment to make this work
 rotate=30
 translate=(0.2, 0.2)
 scale=(0.8, 1.3)
-shear=(7, 7)
 gaussian_noise_std = 0.3
 
 optimizer_params = {
@@ -100,16 +100,26 @@ def get_datasets(model_dir = None, new_ds_split = True,
     
     #preprocess_fn = get_preprocessing_fn(backbone, pretrained=encoder_weights)
 
-    img_mask_tsfm = A.Compose([A.Resize(img_size, img_size)],
+    prep = transforms.Compose([Window(50, 200), Imagify(50, 200), Normalize(mean, std)])
+
+    img_tsfm = A.GaussNoise(var_limit=gaussian_noise_std)
+
+    resize_tsfm = A.Compose([A.Resize(img_size, img_size)],
+            additional_targets={"image1": 'image', "mask1": 'mask'})
+
+    img_mask_tsfm = A.Compose([
+                    A.ShiftScaleRotate(shift_limit=translate, scale_limit=scale, rotate_limit=rotate),
+                    A.HorizontalFlip()],
             additional_targets={"image1": 'image', "mask1": 'mask'})
 
     # create ds
     train_dicoms, val_dicoms, test_dicoms = dsm.get_dicoms()
     
     datasets = {}
-    datasets['train'] = CTDicomSlices(train_dicoms, img_and_mask_transform = img_mask_tsfm, n_surrounding=0)
-    datasets['val'] = CTDicomSlices(val_dicoms, img_and_mask_transform = img_mask_tsfm, n_surrounding=0)
-    datasets['test'] = CTDicomSlices(test_dicoms, img_and_mask_transform = img_mask_tsfm, n_surrounding=0)
+    datasets['train'] = CTDicomSlices(train_dicoms, preprocessing = prep, transform = img_tsfm,
+                        resize_transform = resize_tsfm, img_and_mask_transform = img_mask_tsfm, n_surrounding=0)
+    datasets['val'] = CTDicomSlices(val_dicoms, preprocessing = prep, resize_transform = resize_tsfm, n_surrounding=0)
+    datasets['test'] = CTDicomSlices(test_dicoms, preprocessing = prep, resize_transform = resize_tsfm, n_surrounding=0)
 
     return datasets
 
@@ -127,12 +137,10 @@ def train_model(model, model_dir):
 
     tb_logger = pl_loggers.TensorBoardLogger('{}/logs/'.format(model_dir))
     if Constants.n_gpus != 0:
-        trainer = Trainer(gpus=Constants.n_gpus, distributed_backend='ddp', precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
-        #trainer = Trainer(gpus=Constants.n_gpus, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
+        trainer = Trainer(gpus=Constants.n_gpus, distributed_backend='ddp', logger = tb_logger, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
+        #trainer = Trainer(gpus=Constants.n_gpus, precision=16, logger = tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
-        trainer = Trainer(gpus=0, default_root_dir=model_dir, logger=tb_logger, max_epochs=n_epochs)
-
-    trainer.logger = tb_logger
+        trainer = Trainer(gpus=0, default_root_dir=model_dir, logger = tb_logger, distributed_backend='ddp_spawn', max_epochs=n_epochs)
     
     trainer.fit(model)
     trainer.test()
@@ -144,9 +152,8 @@ def get_model(datasets, batch_size):
     
     # UNet from segmentation models package
     #training_mean, training_std = datasets['train'].calculate_ds_mean_std()
-    m = UNet(datasets, backbone=backbone, batch_size=batch_size, gaussian_noise_std = gaussian_noise_std,
-                degrees=rotate, translate=translate, scale=scale, shear=shear, optimizer_params=optimizer_params,
-                in_channels=in_channels, mean=mean, std=std)
+    m = UNet(datasets, backbone=backbone, batch_size=batch_size, optimizer_params=optimizer_params,
+                in_channels=in_channels)
 
     if resnet_checkpoint is not None:
         pretrained = ResnetJigsaw.load_from_checkpoint(resnet_checkpoint, datasets= datasets['train'], map_location='cpu')
@@ -174,7 +181,7 @@ def get_model(datasets, batch_size):
                 for param in child.parameters():
                     param.requires_grad = False
 
-    summary(m, (1, img_size, img_size), device='cpu')
+    summary(m, (img_size, img_size, 1), device='cpu')
 
     return m
 
@@ -197,8 +204,8 @@ if __name__ == '__main__':
     params = "note: {}\ndataset: {}\nbatch_size: {}\nbackbone: {}\nencoder_weights: {}\nWL: {}\nWW: {}\nimg_size: {}\nLR: {}\n".format(
         note, dataset, batch_size, backbone, encoder_weights, WL, WW, img_size, lr
     )
-    params += "\n\n# AUGMENTATIONS\n\n rotation degrees: {}\ntranslate: {}\nscale: {}\nshear: {}\nGaussian noise: {}".format(
-        rotate, translate, scale, shear, gaussian_noise_std
+    params += "\n\n# AUGMENTATIONS\n\n rotation degrees: {}\ntranslate: {}\nscale: {}\nGaussian noise: {}".format(
+        rotate, translate, scale, gaussian_noise_std
     )
 
     params += "\nOptimizer params: {}".format(optimizer_params)
