@@ -43,7 +43,7 @@ std = 28.3195
 lr = 0.0001
 
 cpu_batch_size = 2
-gpu_batch_size = 64
+gpu_batch_size = 32
 
 n_epochs = 10
 
@@ -78,15 +78,14 @@ def get_dataset():
 
     prep = transforms.Compose([Window(50, 200), Imagify(50, 200), Normalize(mean, std)])
     ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, trim_edges=True,
-            return_tile_coords=True, normalize_tiles=False, max_pixel_value=255,
+            return_tile_coords=True, max_pixel_value=255,
             perm_path=Constants.default_perms)
-
 
     return ctds
 
 def get_batch_size():
     # Setup trainer
-    if Constants.n_gpus > 0:
+    if Constants.n_gpus != 0:
         batch_size = gpu_batch_size    
     else:
         batch_size = cpu_batch_size
@@ -96,7 +95,7 @@ def get_batch_size():
 def train_model(model, model_dir):
     # Setup trainer
     tb_logger = pl_loggers.TensorBoardLogger('{}/logs/'.format(model_dir))
-    if Constants.n_gpus > 0:
+    if Constants.n_gpus != 0:
         trainer = Trainer(gpus=Constants.n_gpus, precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
         trainer = Trainer(gpus=0, default_root_dir=model_dir, logger=tb_logger, max_epochs=n_epochs)

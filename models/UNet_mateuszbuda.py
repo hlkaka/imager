@@ -14,12 +14,14 @@ from torch.utils.data import DataLoader
 
 import kornia
 
-from loss import DiceLoss2
-
 import sys
-sys.path.append('data/')
-from CustomTransforms import TorchFunctionalTransforms as TFT
-from utils import Utils
+sys.path.append('.')
+
+from models.loss import DiceLoss2
+
+
+from data.CustomTransforms import TorchFunctionalTransforms as TFT
+from models.utils import Utils
 
 class UNet_m(pl.LightningModule):
 

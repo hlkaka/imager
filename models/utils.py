@@ -2,9 +2,11 @@
 Common data opertations, such as data agumentations, which are
 expected to be used on multiple models
 '''
+import sys
+sys.path.append('.')
 
 import torch
-from CustomTransforms import TorchFunctionalTransforms as TFT
+from data.CustomTransforms import TorchFunctionalTransforms as TFT
 from torch.cuda.amp import autocast
 
 class Utils:

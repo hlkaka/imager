@@ -25,7 +25,7 @@ class ResnetJigsaw(pl.LightningModule):
         self.datasets = datasets
         self.resnet = torch.hub.load('pytorch/vision', backbone, pretrained=False)
         self.resnet.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        self.resnet.fc = torch.nn.Linear(512, 1000)
+        self.resnet.fc = torch.nn.Linear(512, num_permutations)
         #self.set_single_channel()
 
         self.batch_size = batch_size
@@ -86,53 +86,7 @@ class ResnetJigsaw(pl.LightningModule):
         
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         
-        return {'train_loss': loss}
-
-    def train_epoch_end(self, outputs):
-        train_loss_mean = torch.stack([x['train_loss'] for x in outputs]).mean()
-        d = {'train_loss': train_loss_mean}
-        print(d)
-        return d
-
-    def validation_step(self, batch, batch_nb):
-        images, labels = batch
-
-        y_hat = self(images)
-
-        # loss dim is [batch, 1, img_x, img_y]
-        # need to get rid of the second dimension so
-        # size matches with mask
-        loss = self.loss(y_hat, labels)
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        # Logs
-        #tensorboard_logs = {'val_loss': loss}
-        return {'val_loss': loss} #, 'log': tensorboard_logs}
-
-    def validation_epoch_end(self, outputs):
-        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        d = {'val_loss': val_loss_mean}
-        print(d)
-        return d
-
-    def test_step(self, batch, batch_nb):
-        images, labels = batch
-
-        y_hat = self(images)
-
-        # loss dim is [batch, 1, img_x, img_y]
-        # need to get rid of the second dimension so
-        # size matches with mask
-        loss = self.loss(y_hat, labels)
-
-        # Logs
-        #tensorboard_logs = {'val_loss': loss}
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        return {'test_loss': loss} #, 'log': tensorboard_logs}
-
-    def test_epoch_end(self, outputs):
-        test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-
-        return {'test_loss': test_loss_mean}
+        return loss
 
     def train_dataloader(self):
         return DataLoader(self.datasets, batch_size=self.batch_size, num_workers = self.dl_workers,

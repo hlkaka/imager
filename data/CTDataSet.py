@@ -527,8 +527,8 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
     '''
     def __init__(self, dcm_file_list :list, transform = None, preprocessing = None,
                 trim_edges :bool = False, resize_transform = None, sqrt_n_jigsaw_pieces :int = 3,
-                min_img_size :int = 225, tile_size :int = 64, normalize_tiles = True,
-                max_pixel_value = 1.0, return_tile_coords = False, n_shuffles_per_image = 36,
+                min_img_size :int = 225, tile_size :int = 64,
+                return_tile_coords = False, n_shuffles_per_image = 36,
                 perm_path=None, num_perms = 1000):
 
         '''
@@ -538,7 +538,6 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
 
         tile_size: the size of each tile. typically smaller than grid sections
         normalize_tiles: independently normalize each tile separately
-        max_pixel_value: the highest value for each pixel
         return_tile_coords: returns the coords of selected tiles, for result printing
         '''
 
@@ -551,8 +550,6 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
         self.snjp = sqrt_n_jigsaw_pieces
         self.min_img_size = 225
         self.tile_size = tile_size
-        self.normalize_tiles = normalize_tiles
-        self.max_pixel_value = max_pixel_value
         self.return_tile_coords = return_tile_coords
         self.n_shuffles_per_image = n_shuffles_per_image
 
@@ -621,11 +618,6 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
                     coords.append(tile_top_left)
 
                 tile_data = image[tile_top_left[0]:tile_bottom_right[0], tile_top_left[1]:tile_bottom_right[1]]
-
-                if self.normalize_tiles:
-                    tile_data = A.augmentations.transforms.Normalize(mean=tile_data.mean(),
-                        std=tile_data.std(), max_pixel_value=self.max_pixel_value,
-                        always_apply=True)
 
                 np.copyto(tiles[i * self.snjp + j], tile_data.squeeze())
 

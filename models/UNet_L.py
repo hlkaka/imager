@@ -1,12 +1,14 @@
 import segmentation_models_pytorch as smp
 import pytorch_lightning as pl
-from segmentation_models_pytorch.encoders import get_preprocessing_fn
-import torch.nn.functional as F
 import torch
 from torch.utils.data import DataLoader
 import kornia
-from loss import DiceLoss2
-from utils import Utils
+
+import sys
+sys.path.append('.')
+
+from models.loss import DiceLoss2
+from models.utils import Utils
 
 class UNet(pl.LightningModule):
 
@@ -29,7 +31,7 @@ class UNet(pl.LightningModule):
         self.gaussian_noise_std = gaussian_noise_std
 
         # Augmentations
-        self.ra = kornia.augmentation.RandomAffine(degrees=30, translate=(0.2, 0.2), scale=(0.8, 1.3), shear=(7, 7))
+        self.ra = kornia.augmentation.RandomAffine(degrees=degrees, translate=translate, scale=scale, shear=shear)
         self.rf = kornia.augmentation.RandomHorizontalFlip()
 
         mean = torch.tensor(mean)
@@ -52,10 +54,7 @@ class UNet(pl.LightningModule):
     def forward(self, x):
         #x = x.permute(0, 3, 1, 2)
         # Assume batch is of shape (B, C, H, W)
-        if self.in_channels == 1:    # Hack to limit to single input
-            return self.smp_unet(x[:,1,:,:].unsqueeze(1))
-        else:
-            return self.smp_unet(x)
+        return self.smp_unet(x)
 
     def training_step(self, batch, batch_idx):
         images, masks, _, _ = batch
@@ -75,8 +74,8 @@ class UNet(pl.LightningModule):
         loss = self.loss(y_hat[:,0,:,:], masks)
 
         # Logs
-        #tensorboard_logs = {'train_loss': loss}
-        return {'loss': loss} #, 'log': tensorboard_logs}
+        self.log('train_loss', loss, on_step=True, on_epoch=True, logger=True)
+        return loss #, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_nb):
         images, masks, _, _ = batch
@@ -92,14 +91,15 @@ class UNet(pl.LightningModule):
         loss = self.loss(y_hat[:,0,:,:], masks)
 
         # Logs
-        #tensorboard_logs = {'val_loss': loss}
-        return {'val_loss': loss} #, 'log': tensorboard_logs}
+
+        return {'val_loss': loss} 
         #self.log('validation_loss', loss, on_step=True, on_epoch=True, sync_dist=True)
 
     def validation_epoch_end(self, outputs):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        d = {'val_loss': val_loss_mean}
-        print(d)
+        d = {'val_loss_mean': val_loss_mean}
+        self.log('val_loss_mean', val_loss_mean, logger=True)
+        
         return d
 
     def test_step(self, batch, batch_nb):
@@ -122,6 +122,7 @@ class UNet(pl.LightningModule):
 
     def test_epoch_end(self, outputs):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+        self.log('test_loss_mean', test_loss_mean, logger=True)
 
         return {'test_loss': test_loss_mean}
 
@@ -137,12 +138,17 @@ class UNet(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(params = self.parameters(), lr=self.lr)
         if self.optimizer_params is None:
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
         else:
             factor = self.optimizer_params['factor']
             patience = self.optimizer_params['patience']
             cooldown = self.optimizer_params['cooldown']
             min_lr = self.optimizer_params['min_lr']
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=factor, patience=patience, cooldown=cooldown, min_lr=min_lr)
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=factor, patience=patience, cooldown=cooldown, min_lr=min_lr)
 
-        return [optimizer], [scheduler]
+        return {
+            'optimizer': optimizer,
+            'lr_scheduler': scheduler,
+            'monitor': 'val_loss'
+        }
+        #[optimizer], [scheduler]
