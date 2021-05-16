@@ -127,11 +127,13 @@ def train_model(model, model_dir):
 
     tb_logger = pl_loggers.TensorBoardLogger('{}/logs/'.format(model_dir))
     if Constants.n_gpus != 0:
-        #trainer = Trainer(gpus=2, distributed_backend='ddp', precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
-        trainer = Trainer(gpus=Constants.n_gpus, precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
+        trainer = Trainer(gpus=Constants.n_gpus, distributed_backend='ddp', precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
+        #trainer = Trainer(gpus=Constants.n_gpus, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
         trainer = Trainer(gpus=0, default_root_dir=model_dir, logger=tb_logger, max_epochs=n_epochs)
 
+    trainer.logger = tb_logger
+    
     trainer.fit(model)
     trainer.test()
 

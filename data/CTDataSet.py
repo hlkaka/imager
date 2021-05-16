@@ -640,10 +640,12 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
         tiles, coords = self.generate_tiles(image)
 
         # normalize each tile
-        #tile_means = np.mean(tiles, axis=(1, 2))
-        #tile_stds = np.std(tiles, axis=(1, 2))
+        tile_means = np.mean(tiles, axis=(1, 2))
+        tile_stds = np.std(tiles, axis=(1, 2))
 
-        #tiles = (tiles - tile_means[:,None,None]) / tile_stds[:,None,None]
+        tile_stds [tile_stds < 1e-1] = 1e-1
+
+        tiles = (tiles - tile_means[:,None,None]) / tile_stds[:,None,None]
         
         # shuffle tiles
         # return permutation index as label

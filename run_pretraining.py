@@ -76,10 +76,9 @@ def get_dataset():
     dcm_list = CTDicomSlicesJigsaw.generate_file_list(dataset,
         dicom_glob='/*/*/dicoms/*.dcm')
 
-    prep = transforms.Compose([Window(50, 200), Imagify(50, 200), Normalize(mean, std)])
+    prep = transforms.Compose([Window(50, 200), Imagify(50, 200)]) #, Normalize(mean, std)])
     ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, trim_edges=True,
-            return_tile_coords=True, max_pixel_value=255,
-            perm_path=Constants.default_perms)
+            return_tile_coords=True, perm_path=Constants.default_perms)
 
     return ctds
 
