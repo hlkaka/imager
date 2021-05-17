@@ -38,7 +38,7 @@ backbone = 'resnet34'
 WL = 50
 WW = 200
 mean = 61.0249
-std = 28.3195
+std = 78.3195
 
 lr = 0.0001
 
@@ -50,11 +50,9 @@ n_epochs = 10
 in_channels = 1  # Hack in UNet_L at the moment to make this work
 
 # Augmentations
-rotate=30
-translate=(0.2, 0.2)
-scale=(0.8, 1.3)
-shear=(7, 7)
-gaussian_noise_std = 0.3
+rotate=15
+translate=(0.1, 0.1)
+scale=(0.9, 1.1)
 
 optimizer_params = {
         'factor': 0.5,
@@ -76,7 +74,7 @@ def get_dataset():
     dcm_list = CTDicomSlicesJigsaw.generate_file_list(dataset,
         dicom_glob='/*/*/dicoms/*.dcm')
 
-    prep = transforms.Compose([Window(50, 200), Imagify(50, 200)]) #, Normalize(mean, std)])
+    prep = transforms.Compose([Window(WL, WW), Imagify(WL, WW)]) #, Normalize(mean, std)])
     ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, trim_edges=True,
             return_tile_coords=True, perm_path=Constants.default_perms)
 

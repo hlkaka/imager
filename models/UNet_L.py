@@ -90,13 +90,13 @@ class UNet(pl.LightningModule):
         return {'test_loss': test_loss_mean}
 
     def train_dataloader(self):
-        return DataLoader(self.datasets['train'], batch_size=self.batch_size, num_workers = self.dl_workers, shuffle=True)
+        return DataLoader(self.datasets['train'], persistent_workers=True, batch_size=self.batch_size, num_workers = self.dl_workers, shuffle=True)
 
     def val_dataloader(self):
-        return DataLoader(self.datasets['val'], batch_size=self.batch_size, num_workers = self.dl_workers, shuffle=False)
+        return DataLoader(self.datasets['val'], persistent_workers=True, batch_size=self.batch_size, num_workers = self.dl_workers, shuffle=False)
 
     def test_dataloader(self):
-        return DataLoader(self.datasets['test'], batch_size=self.batch_size, num_workers = self.dl_workers, shuffle=False)
+        return DataLoader(self.datasets['test'], persistent_workers=True, batch_size=self.batch_size, num_workers = self.dl_workers, shuffle=False)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(params = self.parameters(), lr=self.lr)

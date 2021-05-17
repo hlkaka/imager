@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import cv2
 import os
 import albumentations as A
 from torchvision import transforms
@@ -12,12 +11,11 @@ import kornia
 from skimage.segmentation import felzenszwalb, chan_vese
 
 import sys
-sys.path.append('data/')
+sys.path.append('.')
 
-from CTDataSet import CTDicomSlices, CTDicomSlicesFelzenszwalb
-from CustomTransforms import Window
-from CustomTransforms import Imagify
-from CustomTransforms import TorchFunctionalTransforms as TFT
+from data.CTDataSet import CTDicomSlices, CTDicomSlicesFelzenszwalb
+from data.CustomTransforms import Window, Imagify, Normalize
+from data.CustomTransforms import TorchFunctionalTransforms as TFT
 
 def plot_slices_and_mask(slices, mask, text = "", segments = None, f_mask = None):
     mask = mask * 255
@@ -52,30 +50,22 @@ def plot_slices_and_mask(slices, mask, text = "", segments = None, f_mask = None
     plt.show()
 
 def cpu_transforms(dcm_list) -> DataLoader:
-    prep = transforms.Compose([Window(50, 200), Imagify(50, 200)])
-    
-    _img_trfm = [A.GaussNoise()]
-                 #A.RandomBrightnessContrast()]
+    mean, std = [61.0249], [78.3195]
 
-    #img_trfm = A.Compose(_img_trfm)
-    
+    prep = transforms.Compose([Window(50, 200), Imagify(50, 200), Normalize(mean, std)])
 
-    resize_transform = A.Compose([A.Resize(256, 256)])
-
-    _msk_trfm = [#A.Resize(256, 256),
-                 #A.ElasticTransform(alpha_affine=10, p=0.8),
-                 A.HorizontalFlip(),
-                 #A.OpticalDistortion(),
-                 #A.Rotate(limit=30, p=1)
-                 ]
-
-    img_trfm = A.Compose(_msk_trfm + [A.GaussNoise()])
-
-    msk_trfm = A.Compose(_msk_trfm,
+    resize_tsfm = A.Compose([A.Resize(256, 256)],
             additional_targets={"image1": 'image', "mask1": 'mask'})
-    #prep = get_preprocessing_fn('resnet34', pretrained='imagenet')
 
-    ctds = ctds = CTDicomSlicesFelzenszwalb(dcm_list, resize_transform=resize_transform, preprocessing=prep, transform = img_trfm, n_surrounding=0, trim_edges=False)
+    img_mask_tsfm = A.Compose([
+                    A.ShiftScaleRotate(shift_limit=(0.1, 0.1), scale_limit=(0.9, 1.1), rotate_limit=15),
+                    A.HorizontalFlip()],
+            additional_targets={"image1": 'image', "mask1": 'mask'})
+    
+    ctds = CTDicomSlices(dcm_list, preprocessing = prep,
+                        resize_transform = resize_tsfm, img_and_mask_transform = img_mask_tsfm, n_surrounding=0)
+
+   #ctds = CTDicomSlicesFelzenszwalb(dcm_list, resize_transform=resize_tsfm, preprocessing=prep, transform = img_tsfm, n_surrounding=0, trim_edges=False)
 
     dl = DataLoader(ctds, batch_size=1, num_workers = 0, shuffle=True)
 

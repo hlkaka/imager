@@ -76,6 +76,8 @@ mean, std = [61.0249], [78.3195]
 
 resnet_checkpoint = Constants.pretrained_jigsaw
 
+train_frac = 0.25
+
 def get_time():
     now = datetime.now()
     return now.strftime("%Y-%m-%d-%H:%M:%S")
@@ -110,7 +112,7 @@ def get_datasets(model_dir = None, new_ds_split = True,
             additional_targets={"image1": 'image', "mask1": 'mask'})
 
     # create ds
-    train_dicoms, val_dicoms, test_dicoms = dsm.get_dicoms()
+    train_dicoms, val_dicoms, test_dicoms = dsm.get_dicoms(train_frac = train_frac)
     
     datasets = {}
     datasets['train'] = CTDicomSlices(train_dicoms, preprocessing = prep,
@@ -204,8 +206,8 @@ if __name__ == '__main__':
     params = "note: {}\ndataset: {}\nbatch_size: {}\nbackbone: {}\nencoder_weights: {}\nWL: {}\nWW: {}\nimg_size: {}\nLR: {}\n".format(
         note, dataset, batch_size, backbone, encoder_weights, WL, WW, img_size, lr
     )
-    params += "\n\n# AUGMENTATIONS\n\n rotation degrees: {}\ntranslate: {}\nscale: {}".format(
-        rotate, translate, scale
+    params += "\n\n# AUGMENTATIONS\n\n rotation degrees: {}\ntranslate: {}\nscale: {}\ntrain set fraction: {}".format(
+        rotate, translate, scale, train_frac
     )
 
     params += "\nOptimizer params: {}".format(optimizer_params)
