@@ -99,7 +99,7 @@ def get_datasets(model_dir = None, new_ds_split = True,
     
     #preprocess_fn = get_preprocessing_fn(backbone, pretrained=encoder_weights)
 
-    prep = transforms.Compose([Window(50, 200), Imagify(50, 200), Normalize(mean, std)])
+    prep = transforms.Compose([Window(WL, WW), Imagify(WL, WW), Normalize(mean, std)])
 
     resize_tsfm = A.Compose([A.Resize(img_size, img_size)],
             additional_targets={"image1": 'image', "mask1": 'mask'})
