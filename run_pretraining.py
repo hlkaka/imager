@@ -13,6 +13,7 @@ sys.path.append('.')
 from data.CTDataSet import CTDicomSlicesJigsaw
 from data.CustomTransforms import Window, Imagify, Normalize
 from models.ResNet_jigsaw import ResnetJigsaw
+from run_model import get_dl_workers
 
 from constants import Constants
 
@@ -101,7 +102,7 @@ def train_model(model, model_dir):
 
 def get_model(datasets, batch_size):
     m = ResnetJigsaw(datasets, backbone=backbone, 
-        lr=lr, batch_size=batch_size)
+        lr=lr, batch_size=batch_size, dl_workers=get_dl_workers)
 
     summary(m, (9, 64, 64), device='cpu')
 

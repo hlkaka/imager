@@ -89,7 +89,7 @@ class ResnetJigsaw(pl.LightningModule):
         return loss
 
     def train_dataloader(self):
-        return DataLoader(self.datasets, batch_size=self.batch_size, num_workers = self.dl_workers,
+        return DataLoader(self.datasets, persistent_workers=True, batch_size=self.batch_size, num_workers = self.dl_workers,
                           shuffle=True, collate_fn=jigsaw_training_collate)
 
     

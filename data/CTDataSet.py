@@ -776,13 +776,20 @@ class DatasetManager():
 
         return flatten(dcms)
 
-    def get_dicoms(self, dicom_glob :str = 'dicoms/*.dcm'):
+    def get_dicoms(self, dicom_glob :str = 'dicoms/*.dcm', train_frac = 1.0):
         '''
         Returns a tuple of three lists, containing the dicom files for train, val and test in that order
+        train_frac is the fraction of the dataset to be used
         '''
-        train = self._get_dicoms(self.train)
-        val = self._get_dicoms(self.val)
-        test = self._get_dicoms(self.test)
+        if train_frac < 1.0:
+            train_size = int(train_frac * len(self.train))
+            train_list = random.sample(self.train, train_size)
+        else:
+            train_list = self.train
+
+        train = self._get_dicoms(train_list, dicom_glob)
+        val = self._get_dicoms(self.val, dicom_glob)
+        test = self._get_dicoms(self.test, dicom_glob)
 
         return (train, val, test)
 

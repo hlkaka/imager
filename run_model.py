@@ -144,6 +144,18 @@ def train_model(model, model_dir):
     trainer.fit(model)
     trainer.test()
 
+def get_dl_workers():
+    dl_workers = input("Number of DataLoader workers (usually = CPU cores). No error checking:")
+
+    try:
+        dl_workers = int(dl_workers)
+    except:
+        dl_workers = 1
+
+    print("Using {} DL workers".format(dl_workers))
+
+    return dl_workers
+
 def get_model(datasets, batch_size):
     # UNet Mateuszbuda
     #return UNet_m(datasets, lr=lr, batch_size = batch_size, gaussian_noise_std = gaussian_noise_std,
@@ -152,7 +164,7 @@ def get_model(datasets, batch_size):
     # UNet from segmentation models package
     #training_mean, training_std = datasets['train'].calculate_ds_mean_std()
     m = UNet(datasets, backbone=backbone, batch_size=batch_size, optimizer_params=optimizer_params,
-                in_channels=in_channels, dl_workers=1)
+                in_channels=in_channels, dl_workers=get_dl_workers)
 
     if resnet_checkpoint is not None:
         pretrained = ResnetJigsaw.load_from_checkpoint(resnet_checkpoint, datasets= datasets['train'], map_location='cpu')
