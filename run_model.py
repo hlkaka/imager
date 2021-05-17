@@ -164,7 +164,7 @@ def get_model(datasets, batch_size):
     # UNet from segmentation models package
     #training_mean, training_std = datasets['train'].calculate_ds_mean_std()
     m = UNet(datasets, backbone=backbone, batch_size=batch_size, optimizer_params=optimizer_params,
-                in_channels=in_channels, dl_workers=get_dl_workers)
+                in_channels=in_channels, dl_workers=get_dl_workers())
 
     if resnet_checkpoint is not None:
         pretrained = ResnetJigsaw.load_from_checkpoint(resnet_checkpoint, datasets= datasets['train'], map_location='cpu')

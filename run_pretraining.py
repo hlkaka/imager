@@ -102,7 +102,7 @@ def train_model(model, model_dir):
 
 def get_model(datasets, batch_size):
     m = ResnetJigsaw(datasets, backbone=backbone, 
-        lr=lr, batch_size=batch_size, dl_workers=get_dl_workers)
+        lr=lr, batch_size=batch_size, dl_workers=get_dl_workers())
 
     summary(m, (9, 64, 64), device='cpu')
 
