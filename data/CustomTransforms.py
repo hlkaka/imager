@@ -1,7 +1,6 @@
 import numpy as np
-from albumentations import ToFloat, FromFloat
-from torchvision import transforms
 import torch
+from skimage.transform import rescale
 
 class TorchFunctionalTransforms():
     @staticmethod
@@ -87,3 +86,23 @@ class Normalize():
 
     def __call__(self, img):
         return (img - self.mean) / self.std
+
+class MinDimension():
+    '''
+    Resizes an image such that the smallest dimension is equal to the assgined value.
+    Maintains aspect ratio.
+    Assumes image shape is [H, W, C]
+    '''
+    def __init__(self, min_dimension):
+        self.min_dimension = min_dimension
+
+    def __call__(self, image):
+        img_min_dim = np.min(image.shape[0:2])
+        if self.min_dimension <= img_min_dim:
+            return {'image': image}
+
+        ratio = self.min_dimension / img_min_dim
+        # order = 3 refers to bicubic
+        new_img = rescale(image, ratio, order=3, multichannel=True, preserve_range=True)
+
+        return {'image': new_img}
