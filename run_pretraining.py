@@ -47,9 +47,9 @@ gpu_batch_size = 32
 
 n_epochs = 10
 
-in_channels = 1  # Hack in UNet_L at the moment to make this work
+in_channels = 3
 
-pre_train = 'jigsaw' # can be 'felz' or 'jigsaw'
+pre_train = 'felz' # can be 'felz' or 'jigsaw'
 
 def get_time():
     now = datetime.now()
@@ -70,7 +70,7 @@ def get_dataset():
         ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep,
             return_tile_coords=True, perm_path=Constants.default_perms)
     elif pre_train == 'felz':
-        ctds = CTDicomSlices(dcm_list, preprocessing=prep, n_surrounding=0)
+        ctds = CTDicomSlices(dcm_list, preprocessing=prep, n_surrounding=in_channels // 2)
     else:
         raise Exception('Invalid pre_train mode of "{}"'.format(pre_train))
 
@@ -107,7 +107,7 @@ def get_model(datasets, batch_size):
         m = UNet_no_val(ds, backbone=backbone, batch_size=batch_size, loss='cross_entropy',
                 in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=None)
 
-        summary(m, (256, 256, 1), device='cpu')
+        summary(m, (256, 256, in_channels), device='cpu')
 
     return m
 

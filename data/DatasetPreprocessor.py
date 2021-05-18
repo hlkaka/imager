@@ -51,7 +51,6 @@ class DatasetPreprocessor():
 
     def save_image_and_mask(self, image, mask, img_path :str, slice_n :int, metadata :dict):
         ''' Saves the image and mask. For DICOM, metadata is preserved '''
-        subdirs = []
         full_study_dir, img_name = os.path.split(img_path)
         ds_dir, study_name = os.path.split(full_study_dir)
         ds_name = os.path.basename(ds_dir)
