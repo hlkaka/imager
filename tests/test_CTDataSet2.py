@@ -80,10 +80,9 @@ if __name__ == '__main__':
     dcm_list = CTDicomSlices.generate_file_list(dataset,
         dicom_glob='/*/*/dicoms/*.dcm')
 
-    prep = transforms.Compose([Window(50, 200), Imagify(50, 200), Normalize(61.0249, 28.3195)])
+    prep = transforms.Compose([Window(50, 200), Imagify(50, 200), Normalize(61.0249, 78.3195)])
     ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, trim_edges=True,
-            return_tile_coords=True, normalize_tiles=False, max_pixel_value=255,
-            perm_path=Constants.default_perms)
+            return_tile_coords=True, perm_path=Constants.default_perms)
 
     #show_jigsaw_dataset(ctds)
     show_jigsaw_training_dataset(ctds)

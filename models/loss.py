@@ -30,7 +30,7 @@ class DiceLoss2(nn.Module):
         #inputs = F.sigmoid(inputs)       
         
         #flatten label and prediction tensors
-        inputs = inputs.reshape(-1) # view threw exceptions for non-contiuguous tensors
+        inputs = inputs[:,0,:,:].reshape(-1) # view threw exceptions for non-contiuguous tensors
         targets = targets.reshape(-1)
         
         intersection = (inputs * targets).sum()                            

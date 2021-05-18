@@ -3,9 +3,10 @@ Script to run the model
 '''
 import os
 import sys
-from albumentations.augmentations.transforms import ShiftScaleRotate
+
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.seed import seed_everything
+from pytorch_lightning.plugins import DDPPlugin
 from torchvision import transforms
 
 import albumentations as A
@@ -137,7 +138,7 @@ def train_model(model, model_dir):
     tb_logger = pl_loggers.TensorBoardLogger('{}/logs/'.format(model_dir))
     if Constants.n_gpus != 0:
         #trainer = Trainer(gpus=Constants.n_gpus, distributed_backend='ddp', logger = tb_logger, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
-        trainer = Trainer(gpus=Constants.n_gpus, accelerator='ddp_spawn', precision=16, logger = tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
+        trainer = Trainer(gpus=Constants.n_gpus, plugins=DDPPlugin(find_unused_parameters=False), accelerator='ddp_spawn', precision=16, logger = tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
         trainer = Trainer(gpus=0, default_root_dir=model_dir, logger = tb_logger, distributed_backend='ddp_spawn', max_epochs=n_epochs)
     
@@ -164,7 +165,7 @@ def get_model(datasets, batch_size):
     # UNet from segmentation models package
     #training_mean, training_std = datasets['train'].calculate_ds_mean_std()
     m = UNet(datasets, backbone=backbone, batch_size=batch_size, optimizer_params=optimizer_params,
-                in_channels=in_channels, dl_workers=get_dl_workers())
+                in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=encoder_weights)
 
     if resnet_checkpoint is not None:
         pretrained = ResnetJigsaw.load_from_checkpoint(resnet_checkpoint, datasets= datasets['train'], map_location='cpu')
@@ -222,7 +223,10 @@ if __name__ == '__main__':
         rotate, translate, scale, train_frac
     )
 
-    params += "\nOptimizer params: {}".format(optimizer_params)
+    params += "\ndataset: {}\nin_channels: {}\nOptimizer params: {}\nFrozen backbone {} OR frozen layers {} ".format(
+                    dataset, in_channels, optimizer_params, freeze_backbone, freeze_n_layers)
+    
+    params += '-- Note if the backbone is frozen, then the number of frozen layers is ignored. Also note frozen layers has a bug that exaggerated the number by 1'
 
     with open("{}/{}".format(model_dir, params_file), "w") as f:
         f.write(params)

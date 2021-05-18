@@ -243,7 +243,7 @@ class CTDicomSlices(CTDicomSlicesMaskless):
 
         slices, mask = self.apply_all_transforms_with_masks(slices, mask)
             
-        return slices.astype("float32"), mask.astype("float32"), img_path, slice_n
+        return slices.astype("float32"), mask.astype("long"), img_path, slice_n
 
     def get_mask(self, img_path :str, slice_n :int):
         dicoms_dir = os.path.dirname(img_path)
@@ -369,7 +369,7 @@ class CTDicomSlicesFelzenszwalb(CTDicomSlices):
         slices, img_path, slice_n = super().get_images(idx)
 
         if self.felz_crop:
-            slices = self.apply_crops(slices, return_preprocessed=True)
+            slices = self.apply_crops(slices)
         
         slices = self.apply_all_transforms(slices)
 
@@ -378,7 +378,7 @@ class CTDicomSlicesFelzenszwalb(CTDicomSlices):
         segments_final = self.get_felzenszwalb(slices, self.felz_params)
         mask, _ = self.get_mask(segments_final)
 
-        return slices.astype("float32"), mask.astype("float32"), img_path, slice_n
+        return slices.astype("float32"), mask.astype("long"), img_path, slice_n
 
     def get_crops(self, segments, dim, step = 1, buffer = 20, bg_segment=0):
         '''
@@ -509,8 +509,7 @@ class CTDicomSlicesFelzSaving(CTDicomSlicesFelzenszwalb):
         img_path, slice_n = self.get_path_slice_num(idx)
         image, metadata = self.image_with_metadata(img_path, slice_n)
 
-        # We want all transforms on the image before Felzenswalb and mask generation
-        # However, we still want to return the original image with only the resize transform
+        # Performs preprocessing for cropping. However, returns a cropped unpreprocessed image
         if self.felz_crop:
             image = self.apply_crops(image)   # Does 1-3
 
@@ -518,7 +517,10 @@ class CTDicomSlicesFelzSaving(CTDicomSlicesFelzenszwalb):
         segments = self.get_felzenszwalb(image_transformed, self.felz_params) # Does 5
         mask, super_pixels = self.get_mask(segments) # Does 6
 
-        return image.astype("float32"), mask.astype("float32"), \
+        # Finally, get everything on image except prep
+        image = self.apply_all_transforms(image, exclude_prep=True)
+
+        return image.astype("float32"), mask.astype("long"), \
                 img_path, slice_n, segments.astype("float32"), metadata, super_pixels
 
 class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):

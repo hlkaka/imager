@@ -5,15 +5,17 @@ import os
 import sys
 from pytorch_lightning import Trainer, loggers as pl_loggers
 from pytorch_lightning.utilities.seed import seed_everything
+from pytorch_lightning.plugins import DDPPlugin
 
 from torchvision import transforms
 from datetime import datetime
 
 sys.path.append('.')
-from data.CTDataSet import CTDicomSlicesJigsaw
-from data.CustomTransforms import Window, Imagify, Normalize
+from data.CTDataSet import CTDicomSlices, CTDicomSlicesJigsaw
+from data.CustomTransforms import Window, Imagify
 from models.ResNet_jigsaw import ResnetJigsaw
 from run_model import get_dl_workers
+from models.UNet_L import UNet_no_val
 
 from constants import Constants
 
@@ -26,11 +28,8 @@ from torchsummary import summary
 # Create model
 # Run model
 
-dataset = Constants.ct_only_cleaned
+dataset = Constants.ct_only_cleaned_resized
 model_output_parent = Constants.model_outputs
-
-val_frac = 0.112
-test_frac = 0.112
 
 params_file = "params.txt" # where to save params for this run
 
@@ -50,17 +49,7 @@ n_epochs = 10
 
 in_channels = 1  # Hack in UNet_L at the moment to make this work
 
-# Augmentations
-rotate=15
-translate=(0.1, 0.1)
-scale=(0.9, 1.1)
-
-optimizer_params = {
-        'factor': 0.5,
-        'patience': 5, 
-        'cooldown': 5, 
-        'min_lr': 1e-6
-}
+pre_train = 'jigsaw' # can be 'felz' or 'jigsaw'
 
 def get_time():
     now = datetime.now()
@@ -71,13 +60,19 @@ def get_dataset():
     Builds the necessary datasets
     '''
     # create ds
-    dataset = Constants.ct_only_cleaned
+    dataset = Constants.ct_only_cleaned_resized
     dcm_list = CTDicomSlicesJigsaw.generate_file_list(dataset,
         dicom_glob='/*/*/dicoms/*.dcm')
 
     prep = transforms.Compose([Window(WL, WW), Imagify(WL, WW)]) #, Normalize(mean, std)])
-    ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, trim_edges=True,
+
+    if pre_train == 'jigsaw':
+        ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep,
             return_tile_coords=True, perm_path=Constants.default_perms)
+    elif pre_train == 'felz':
+        ctds = CTDicomSlices(dcm_list, preprocessing=prep, n_surrounding=0)
+    else:
+        raise Exception('Invalid pre_train mode of "{}"'.format(pre_train))
 
     return ctds
 
@@ -94,17 +89,25 @@ def train_model(model, model_dir):
     # Setup trainer
     tb_logger = pl_loggers.TensorBoardLogger('{}/logs/'.format(model_dir))
     if Constants.n_gpus != 0:
-        trainer = Trainer(gpus=Constants.n_gpus, precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
+        trainer = Trainer(gpus=Constants.n_gpus, plugins=DDPPlugin(find_unused_parameters=False), precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
         trainer = Trainer(gpus=0, default_root_dir=model_dir, logger=tb_logger, max_epochs=n_epochs)
 
     trainer.fit(model)
 
 def get_model(datasets, batch_size):
-    m = ResnetJigsaw(datasets, backbone=backbone, 
-        lr=lr, batch_size=batch_size, dl_workers=get_dl_workers())
+    if pre_train == 'jigsaw':
+        m = ResnetJigsaw(datasets, backbone=backbone, 
+            lr=lr, batch_size=batch_size, dl_workers=get_dl_workers())
+        
+        summary(m, (9, 64, 64), device='cpu')
 
-    summary(m, (9, 64, 64), device='cpu')
+    elif pre_train == 'felz':
+        ds = {'train': datasets, 'val': None, 'test': None}
+        m = UNet_no_val(ds, backbone=backbone, batch_size=batch_size, loss='cross_entropy',
+                in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=None)
+
+        summary(m, (256, 256, 1), device='cpu')
 
     return m
 
@@ -128,7 +131,7 @@ if __name__ == '__main__':
         note, dataset, batch_size, backbone, WL, WW, mean, std, lr
     )
 
-    params += "\nOptimizer params: {}".format(optimizer_params)
+    params += "\ndataset: {}\nin_channels: {}\npre_train: {}".format(dataset, in_channels, pre_train)
 
     with open("{}/{}".format(model_dir, params_file), "w") as f:
         f.write(params)
