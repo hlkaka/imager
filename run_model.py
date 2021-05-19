@@ -51,12 +51,12 @@ WW = 200
 
 img_size = 256
 
-lr = 0.0001
+lr = 0.00001
 freeze_backbone = False
 freeze_n_layers = 0
 
 cpu_batch_size = 2
-gpu_batch_size = 64
+gpu_batch_size = 128
 
 n_epochs = 10
 
@@ -70,7 +70,7 @@ scale=(0.9, 1.1)
 optimizer_params = {
         'factor': 0.5,
         'patience': 5, 
-        'cooldown': 5, 
+        'cooldown': 0, 
         'min_lr': 1e-6
 }
 
@@ -79,7 +79,7 @@ mean, std = [61.0249], [78.3195]
 resnet_checkpoint = None #Constants.pretrained_jigsaw
 unet_checkpoint = Constants.pretrained_unet_imagenet
 
-train_frac = 0.25
+train_frac = 1.0
 
 def get_time():
     now = datetime.now()
@@ -186,7 +186,8 @@ def get_model(datasets, batch_size):
         m.smp_unet.encoder.layer4 = pretrained.resnet.layer4
     
     elif unet_checkpoint is not None:
-        pretrained = UNet.load_from_checkpoint(unet_checkpoint, datasets=datasets, map_location='cpu', dl_workers=get_dl_workers())
+        pretrained = UNet.load_from_checkpoint(unet_checkpoint, datasets=datasets, map_location='cpu', dl_workers=get_dl_workers(), batch_size=batch_size,
+                                backbone=backbone, in_channels=in_channels, encoder_weights=None, optimizer_params=optimizer_params) # encoder weights are None because they will be loaded. No need to duplicate
 
         # https://github.com/qubvel/segmentation_models.pytorch/blob/master/segmentation_models_pytorch/unet/model.py
         decoder_channels = (256, 128, 64, 32, 16)    # seems to be hardcoded in the UNet constructor
