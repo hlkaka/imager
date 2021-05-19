@@ -91,7 +91,7 @@ def train_model(model, model_dir):
     # Setup trainer
     tb_logger = pl_loggers.TensorBoardLogger('{}/logs/'.format(model_dir))
     if Constants.n_gpus != 0:
-        trainer = Trainer(gpus=Constants.n_gpus, accelerator='ddp_spwan', plugins=DDPPlugin(find_unused_parameters=False), precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
+        trainer = Trainer(gpus=Constants.n_gpus, accelerator='ddp_spawn', plugins=DDPPlugin(find_unused_parameters=False), precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
         trainer = Trainer(gpus=0, default_root_dir=model_dir, logger=tb_logger, max_epochs=n_epochs)
 
@@ -133,7 +133,7 @@ if __name__ == '__main__':
         note, dataset, batch_size, backbone, WL, WW, mean, std, lr
     )
 
-    params += "\ndataset: {}\nin_channels: {}\npre_train: {}\nencoder_weights: {}\nloss: {}".format(dataset, in_channels, pre_train, encoder_weights)
+    params += "\ndataset: {}\nin_channels: {}\npre_train: {}\nencoder_weights: {}\nloss: {}".format(dataset, in_channels, pre_train, encoder_weights, loss)
 
     with open("{}/{}".format(model_dir, params_file), "w") as f:
         f.write(params)
