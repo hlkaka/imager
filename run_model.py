@@ -186,7 +186,7 @@ def get_model(datasets, batch_size):
         m.smp_unet.encoder.layer4 = pretrained.resnet.layer4
     
     elif unet_checkpoint is not None:
-        pretrained = UNet.load_from_checkpoint(unet_checkpoint, datasets=datasets, map_location='cpu')
+        pretrained = UNet.load_from_checkpoint(unet_checkpoint, datasets=datasets, map_location='cpu', dl_workers=get_dl_workers())
 
         # https://github.com/qubvel/segmentation_models.pytorch/blob/master/segmentation_models_pytorch/unet/model.py
         decoder_channels = (256, 128, 64, 32, 16)    # seems to be hardcoded in the UNet constructor
