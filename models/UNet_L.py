@@ -1,5 +1,3 @@
-from torch.optim import optimizer
-import data
 import segmentation_models_pytorch as smp
 import pytorch_lightning as pl
 import torch

@@ -8,6 +8,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.seed import seed_everything
 from pytorch_lightning.plugins import DDPPlugin
 from torchvision import transforms
+from segmentation_models_pytorch.base.heads import SegmentationHead
 
 import albumentations as A
 from datetime import datetime
@@ -52,14 +53,14 @@ img_size = 256
 
 lr = 0.0001
 freeze_backbone = False
-freeze_n_layers = 8
+freeze_n_layers = 0
 
 cpu_batch_size = 2
 gpu_batch_size = 64
 
 n_epochs = 10
 
-in_channels = 1  # Hack in UNet_L at the moment to make this work
+in_channels = 3 
 
 # Augmentations
 rotate=15
@@ -75,7 +76,8 @@ optimizer_params = {
 
 mean, std = [61.0249], [78.3195] 
 
-resnet_checkpoint = Constants.pretrained_jigsaw
+resnet_checkpoint = None #Constants.pretrained_jigsaw
+unet_checkpoint = Constants.pretrained_unet_imagenet
 
 train_frac = 0.25
 
@@ -117,9 +119,9 @@ def get_datasets(model_dir = None, new_ds_split = True,
     
     datasets = {}
     datasets['train'] = CTDicomSlices(train_dicoms, preprocessing = prep,
-                        resize_transform = resize_tsfm, img_and_mask_transform = img_mask_tsfm, n_surrounding=0)
-    datasets['val'] = CTDicomSlices(val_dicoms, preprocessing = prep, resize_transform = resize_tsfm, n_surrounding=0)
-    datasets['test'] = CTDicomSlices(test_dicoms, preprocessing = prep, resize_transform = resize_tsfm, n_surrounding=0)
+                        resize_transform = resize_tsfm, img_and_mask_transform = img_mask_tsfm, n_surrounding=in_channels // 2)
+    datasets['val'] = CTDicomSlices(val_dicoms, preprocessing = prep, resize_transform = resize_tsfm, n_surrounding=in_channels // 2)
+    datasets['test'] = CTDicomSlices(test_dicoms, preprocessing = prep, resize_transform = resize_tsfm, n_surrounding=in_channels // 2)
 
     return datasets
 
@@ -164,10 +166,11 @@ def get_model(datasets, batch_size):
     
     # UNet from segmentation models package
     #training_mean, training_std = datasets['train'].calculate_ds_mean_std()
-    m = UNet(datasets, backbone=backbone, batch_size=batch_size, optimizer_params=optimizer_params,
-                in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=encoder_weights)
 
     if resnet_checkpoint is not None:
+        m = UNet(datasets, backbone=backbone, batch_size=batch_size, optimizer_params=optimizer_params,
+                in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=encoder_weights)
+
         pretrained = ResnetJigsaw.load_from_checkpoint(resnet_checkpoint, datasets= datasets['train'], map_location='cpu')
 
         # This commented line is for viewing past models
@@ -181,6 +184,24 @@ def get_model(datasets, batch_size):
         m.smp_unet.encoder.layer2 = pretrained.resnet.layer2
         m.smp_unet.encoder.layer3 = pretrained.resnet.layer3
         m.smp_unet.encoder.layer4 = pretrained.resnet.layer4
+    
+    elif unet_checkpoint is not None:
+        pretrained = UNet.load_from_checkpoint(unet_checkpoint, datasets=datasets, map_location='cpu')
+
+        # https://github.com/qubvel/segmentation_models.pytorch/blob/master/segmentation_models_pytorch/unet/model.py
+        decoder_channels = (256, 128, 64, 32, 16)    # seems to be hardcoded in the UNet constructor
+        pretrained.smp_unet.segmentation_head = SegmentationHead(
+            in_channels = decoder_channels[-1],
+            out_channels = 2,
+            activation = 'softmax',   # magic value
+            kernel_size = 3,
+        )
+
+        m = pretrained
+    
+    else:
+        m = UNet(datasets, backbone=backbone, batch_size=batch_size, optimizer_params=optimizer_params,
+                in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=encoder_weights)
 
     if freeze_backbone:       
         # Freeze entire backbone
@@ -196,7 +217,7 @@ def get_model(datasets, batch_size):
                 for param in child.parameters():
                     param.requires_grad = False
 
-    summary(m, (img_size, img_size, 1), device='cpu')
+    summary(m, (img_size, img_size, in_channels), device='cpu')
 
     return m
 

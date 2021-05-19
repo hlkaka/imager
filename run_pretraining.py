@@ -55,7 +55,7 @@ pre_train = 'felz' # can be 'felz' or 'jigsaw'
 
 optimizer_params = {
         'factor': 0.5,
-        'patience': 3, 
+        'patience': 2, 
         'cooldown': 0, 
         'min_lr': 1e-6
 }
