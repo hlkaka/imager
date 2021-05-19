@@ -58,8 +58,20 @@ class UNet_no_val(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(params = self.parameters(), lr=self.lr)
+        if self.optimizer_params is None:
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
+        else:
+            factor = self.optimizer_params['factor']
+            patience = self.optimizer_params['patience']
+            cooldown = self.optimizer_params['cooldown']
+            min_lr = self.optimizer_params['min_lr']
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=factor, patience=patience, cooldown=cooldown, min_lr=min_lr)
 
-        return [optimizer]
+        return {
+            'optimizer': optimizer,
+            'lr_scheduler': scheduler,
+            'monitor': 'train_loss_epoch'
+        }
 
 
 class UNet(UNet_no_val):
@@ -82,22 +94,11 @@ class UNet(UNet_no_val):
         return DataLoader(self.datasets['test'], persistent_workers=True, batch_size=self.batch_size, num_workers = self.dl_workers, shuffle=False)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(params = self.parameters(), lr=self.lr)
-        if self.optimizer_params is None:
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
-        else:
-            factor = self.optimizer_params['factor']
-            patience = self.optimizer_params['patience']
-            cooldown = self.optimizer_params['cooldown']
-            min_lr = self.optimizer_params['min_lr']
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=factor, patience=patience, cooldown=cooldown, min_lr=min_lr)
+        tmp = super().configure_optimizers()
 
-        return {
-            'optimizer': optimizer,
-            'lr_scheduler': scheduler,
-            'monitor': 'val_loss_mean'
-        }
-        #[optimizer], [scheduler]
+        tmp['monitor'] = 'val_loss_mean'
+
+        return tmp
 
     def validation_step(self, batch, batch_nb):
         images, masks, _, _ = batch

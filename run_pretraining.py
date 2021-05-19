@@ -53,6 +53,13 @@ in_channels = 3
 
 pre_train = 'felz' # can be 'felz' or 'jigsaw'
 
+optimizer_params = {
+        'factor': 0.5,
+        'patience': 3, 
+        'cooldown': 0, 
+        'min_lr': 1e-6
+}
+
 def get_time():
     now = datetime.now()
     return now.strftime("%Y-%m-%d-%H:%M:%S")
