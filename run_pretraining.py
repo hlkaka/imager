@@ -140,7 +140,8 @@ if __name__ == '__main__':
         note, dataset, batch_size, backbone, WL, WW, mean, std, lr
     )
 
-    params += "\ndataset: {}\nin_channels: {}\npre_train: {}\nencoder_weights: {}\nloss: {}".format(dataset, in_channels, pre_train, encoder_weights, loss)
+    params += "\ndataset: {}\nin_channels: {}\npre_train: {}\nencoder_weights: {}\nloss: {}\noptimizer params: {}".format(
+                    dataset, in_channels, pre_train, encoder_weights, loss, optimizer_params)
 
     with open("{}/{}".format(model_dir, params_file), "w") as f:
         f.write(params)
