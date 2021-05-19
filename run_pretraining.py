@@ -34,6 +34,8 @@ model_output_parent = Constants.model_outputs
 params_file = "params.txt" # where to save params for this run
 
 backbone = 'resnet34'
+encoder_weights = 'imagenet' # or None
+loss = 'cross_entropy'
 
 WL = 50
 WW = 200
@@ -89,7 +91,7 @@ def train_model(model, model_dir):
     # Setup trainer
     tb_logger = pl_loggers.TensorBoardLogger('{}/logs/'.format(model_dir))
     if Constants.n_gpus != 0:
-        trainer = Trainer(gpus=Constants.n_gpus, plugins=DDPPlugin(find_unused_parameters=False), precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
+        trainer = Trainer(gpus=Constants.n_gpus, accelerator='ddp_spwan', plugins=DDPPlugin(find_unused_parameters=False), precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
         trainer = Trainer(gpus=0, default_root_dir=model_dir, logger=tb_logger, max_epochs=n_epochs)
 
@@ -104,8 +106,8 @@ def get_model(datasets, batch_size):
 
     elif pre_train == 'felz':
         ds = {'train': datasets, 'val': None, 'test': None}
-        m = UNet_no_val(ds, backbone=backbone, batch_size=batch_size, loss='cross_entropy',
-                in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=None)
+        m = UNet_no_val(ds, backbone=backbone, batch_size=batch_size, loss=loss,
+                in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=encoder_weights)
 
         summary(m, (256, 256, in_channels), device='cpu')
 
@@ -131,7 +133,7 @@ if __name__ == '__main__':
         note, dataset, batch_size, backbone, WL, WW, mean, std, lr
     )
 
-    params += "\ndataset: {}\nin_channels: {}\npre_train: {}".format(dataset, in_channels, pre_train)
+    params += "\ndataset: {}\nin_channels: {}\npre_train: {}\nencoder_weights: {}\nloss: {}".format(dataset, in_channels, pre_train, encoder_weights)
 
     with open("{}/{}".format(model_dir, params_file), "w") as f:
         f.write(params)
