@@ -51,7 +51,7 @@ WW = 200
 
 img_size = 256
 
-lr = 0.00001
+lr = 0.00005
 freeze_backbone = False
 freeze_n_layers = 0
 
@@ -169,7 +169,7 @@ def get_model(datasets, batch_size):
 
     if resnet_checkpoint is not None:
         m = UNet(datasets, backbone=backbone, batch_size=batch_size, optimizer_params=optimizer_params,
-                in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=encoder_weights)
+                in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=encoder_weights, lr=lr)
 
         pretrained = ResnetJigsaw.load_from_checkpoint(resnet_checkpoint, datasets= datasets['train'], map_location='cpu')
 
@@ -187,7 +187,7 @@ def get_model(datasets, batch_size):
     
     elif unet_checkpoint is not None:
         pretrained = UNet.load_from_checkpoint(unet_checkpoint, datasets=datasets, map_location='cpu', dl_workers=get_dl_workers(), batch_size=batch_size,
-                                backbone=backbone, in_channels=in_channels, encoder_weights=None, optimizer_params=optimizer_params, classes=6) # encoder weights are None because they will be loaded. No need to duplicate
+                                backbone=backbone, in_channels=in_channels, encoder_weights=None, optimizer_params=optimizer_params, classes=6, lr=lr) # encoder weights are None because they will be loaded. No need to duplicate
 
         # https://github.com/qubvel/segmentation_models.pytorch/blob/master/segmentation_models_pytorch/unet/model.py
         decoder_channels = (256, 128, 64, 32, 16)    # seems to be hardcoded in the UNet constructor
@@ -202,7 +202,7 @@ def get_model(datasets, batch_size):
     
     else:
         m = UNet(datasets, backbone=backbone, batch_size=batch_size, optimizer_params=optimizer_params,
-                in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=encoder_weights)
+                in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=encoder_weights, lr=lr)
 
     if freeze_backbone:       
         # Freeze entire backbone
