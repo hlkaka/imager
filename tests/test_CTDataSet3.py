@@ -11,7 +11,7 @@ import matplotlib.patches as patches
 import sys
 sys.path.append('./')
 
-from data.CTDataSet import CTDicomSlicesJigsaw, CTDicomSlicesFelzenszwalb
+from data.CTDataSet import CTDicomSlices, CTDicomSlicesJigsaw, CTDicomSlicesFelzenszwalb
 from data.CustomTransforms import Window, Imagify, Normalize
 from models.ResNet_jigsaw import ResnetJigsaw
 
@@ -34,7 +34,7 @@ def show_dataset(ctds):
     for slices, mask, img_path, slice_n in dl:
         slices = slices[0] # get rid of batch number
                            # don't squeeze because we need 1 for channel
-        mask = mask.permute(1, 2, 0)
+        mask = mask.permute(1, 2, 0) * 255
         show_images(slices, mask, img_path, slice_n)
         prompt_for_quit()
 
@@ -54,15 +54,18 @@ def show_images(slices, mask, img_path, slice_n):
     fig.show()
 
 if __name__ == '__main__':
-    dataset = Constants.ct_only_filtered2
-    dcm_list = CTDicomSlicesFelzenszwalb.generate_file_list(dataset,
-        dicom_glob='/*/*/*.dcm')
+    dataset = '/mnt/g/thesis/ct_only_cleaned_resized_mini/head-neck-radiomics'
+    #dataset = Constants.organized_dataset_2
+    dcm_list = CTDicomSlices.generate_file_list(dataset)
+        #dicom_glob='/*/*/*.dcm')
 
     prep = transforms.Compose([Window(50, 200), Imagify(50, 200)])
     tsfm = A.Compose([A.SmallestMaxSize(max_size=256, always_apply=True, p=1),
                       A.CenterCrop(256, 256, always_apply=True, p=1.0)])
 
-    ctds = CTDicomSlicesFelzenszwalb(dcm_list, preprocessing=prep, resize_transform=tsfm,
-                    n_surrounding=0, felz_crop=True)
+    #ctds = CTDicomSlices(dcm_list, preprocessing=prep, resize_transform=tsfm,
+    #                n_surrounding=0)# , felz_crop=True)
+    
+    ctds = CTDicomSlices(dcm_list, n_surrounding=0, mask_is_255=False)
 
     show_dataset(ctds)

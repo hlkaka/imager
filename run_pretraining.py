@@ -52,6 +52,7 @@ n_epochs = 10
 in_channels = 3
 
 pre_train = 'felz' # can be 'felz' or 'jigsaw'
+num_classes = 6 # for 'felz' pretraining only. 5 segments & 0 for background
 
 optimizer_params = {
         'factor': 0.5,
@@ -64,12 +65,11 @@ def get_time():
     now = datetime.now()
     return now.strftime("%Y-%m-%d-%H:%M:%S")
 
-def get_dataset():
+def get_dataset(dataset = Constants.ct_only_cleaned_resized):
     '''
     Builds the necessary datasets
     '''
     # create ds
-    dataset = Constants.ct_only_cleaned_resized
     dcm_list = CTDicomSlicesJigsaw.generate_file_list(dataset,
         dicom_glob='/*/*/dicoms/*.dcm')
 
@@ -79,7 +79,8 @@ def get_dataset():
         ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep,
             return_tile_coords=True, perm_path=Constants.default_perms)
     elif pre_train == 'felz':
-        ctds = CTDicomSlices(dcm_list, preprocessing=prep, n_surrounding=in_channels // 2)
+        # Felz masks were saved with foreground being 1,2,3,4 (instead of 255). mask_is_255 flag is CRITICAL
+        ctds = CTDicomSlices(dcm_list, preprocessing=prep, n_surrounding=in_channels // 2, mask_is_255=False)
     else:
         raise Exception('Invalid pre_train mode of "{}"'.format(pre_train))
 
@@ -113,8 +114,9 @@ def get_model(datasets, batch_size):
 
     elif pre_train == 'felz':
         ds = {'train': datasets, 'val': None, 'test': None}
-        m = UNet_no_val(ds, backbone=backbone, batch_size=batch_size, loss=loss,
-                in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=encoder_weights)
+        m = UNet_no_val(ds, backbone=backbone, batch_size=batch_size, loss=loss, lr=lr,
+                in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=encoder_weights,
+                classes = num_classes)
 
         summary(m, (256, 256, in_channels), device='cpu')
 

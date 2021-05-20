@@ -5,7 +5,6 @@ import SimpleITK as sitk
 import numpy as np
 import random
 from skimage.segmentation import felzenszwalb
-from .holdout import read_list, write_list
 import albumentations as A
 import sys
 from tqdm import trange
@@ -15,6 +14,7 @@ import torch
 
 sys.path.append('.')
 from constants import Constants
+from data.holdout import read_list, write_list
 
 class CTDicomSlicesMaskless(Dataset):
     '''
@@ -183,7 +183,7 @@ class CTDicomSlices(CTDicomSlicesMaskless):
     '''
     def __init__(self, dcm_file_list :list, transform = None, img_and_mask_transform = None,
                 preprocessing = None, n_surrounding :int = 1,
-                trim_edges :bool = False, resize_transform = None):
+                trim_edges :bool = False, resize_transform = None, mask_is_255 = True):
         '''
         Initializes a new CTDicomSlices
 
@@ -191,7 +191,6 @@ class CTDicomSlices(CTDicomSlicesMaskless):
         dcm_file_list: list of .dcm files containing slices of all patiences in dataset
         transform: albumentation to transform input slices
         img_and_mask_transform: albumentation transform both input slices and mask
-        shuffle: whether or not to shuffle the dataset
         preprocessing: function to transform input slices
         n_surrounding: number of slices to take per input. Each item will have n_surrounding * 2 + 1 slices
         trim_edges: trims columns and rows that are empty. May result in different resolutions for each image.
@@ -199,11 +198,14 @@ class CTDicomSlices(CTDicomSlicesMaskless):
                     the min amount.
         resize_transform: the transform to resize an image and mask. If self supervised, resized transform
                           should resize image only. Otherwise, it should resize both image and mask.
+        mask_is_255: if True, the mask pixel values are divided by 255 to get class values. I.e. foreground is 255 and background is 0.
+                     if False, the mask pixel values are kept as is to get class values. I.e. foreground is 1,2,3 and background is 0.
         '''
         super().__init__(dcm_file_list, transform=transform, preprocessing=preprocessing,
                          n_surrounding=n_surrounding, trim_edges=trim_edges, resize_transform=resize_transform)
 
         self.img_and_mask_transform = img_and_mask_transform
+        self.mask_is_255 = mask_is_255
         
     def apply_all_transforms_with_masks(self, slices, mask):
         if self.preprocessing is not None:
@@ -255,7 +257,8 @@ class CTDicomSlices(CTDicomSlicesMaskless):
 
         for c_dir in mask_component_dirs:
             mask_comp = sitk.GetArrayFromImage(sitk.ReadImage(c_dir + "/" + str(slice_n) + ".png"))
-            mask_comp = mask_comp // 255      # Reduce it to 1 vs 0 instead of 255 vs 0
+            if self.mask_is_255:
+                mask_comp = mask_comp // 255      # Reduce it to 1 vs 0 instead of 255 vs 0
 
             if aggregate_mask is not None:
                 aggregate_mask = np.maximum(aggregate_mask, mask_comp)
