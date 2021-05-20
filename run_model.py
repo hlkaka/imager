@@ -187,7 +187,7 @@ def get_model(datasets, batch_size):
     
     elif unet_checkpoint is not None:
         pretrained = UNet.load_from_checkpoint(unet_checkpoint, datasets=datasets, map_location='cpu', dl_workers=get_dl_workers(), batch_size=batch_size,
-                                backbone=backbone, in_channels=in_channels, encoder_weights=None, optimizer_params=optimizer_params) # encoder weights are None because they will be loaded. No need to duplicate
+                                backbone=backbone, in_channels=in_channels, encoder_weights=None, optimizer_params=optimizer_params, classes=6) # encoder weights are None because they will be loaded. No need to duplicate
 
         # https://github.com/qubvel/segmentation_models.pytorch/blob/master/segmentation_models_pytorch/unet/model.py
         decoder_channels = (256, 128, 64, 32, 16)    # seems to be hardcoded in the UNet constructor
