@@ -15,7 +15,7 @@ class ResnetJigsaw(pl.LightningModule):
     def __init__(self, datasets, backbone = 'resnet34',
                  batch_size :int = 32, lr = 0.0001, dl_workers = 8,
                  optimizer_params = None,
-                 num_permutations = 1000):
+                 num_permutations = 1000, in_channels = 1, pretrained=False):
 
         super().__init__()
         '''
@@ -23,10 +23,13 @@ class ResnetJigsaw(pl.LightningModule):
         resnet: object of type resnet. for example, torchvision.models.resnet34
         '''
         self.datasets = datasets
-        self.resnet = torch.hub.load('pytorch/vision', backbone, pretrained=False)
-        self.resnet.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        self.resnet.fc = torch.nn.Linear(512, num_permutations)
-        #self.set_single_channel()
+        self.resnet = torch.hub.load('pytorch/vision', backbone, pretrained=pretrained)
+        if in_channels != 3:
+            # If 3, keep the existing first layer as it might be pretrained
+            self.resnet.conv1 = torch.nn.Conv2d(in_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+
+        num_ftrs = self.resnet.fc.in_features
+        self.resnet.fc = torch.nn.Linear(num_ftrs, num_permutations)
 
         self.batch_size = batch_size
         self.lr = lr
@@ -35,19 +38,10 @@ class ResnetJigsaw(pl.LightningModule):
         self.optimizer_params = optimizer_params
 
         self.loss = nn.CrossEntropyLoss()
-
-    def set_single_channel(self):
-        # ResNet normally takes 3 channels
-        # This changes the first convolution layer to the correct number (usually just 1 channel)
-        for module in self.resnet.modules():
-            if isinstance(module, nn.Conv2d):
-                target_module = module
-                break
-        
-        target_module.in_channels = 1
+        self.in_channels = in_channels
 
     @classmethod
-    def tiles_to_image(cls, tiles, device = torch.device('cpu')):
+    def tiles_to_image(cls, tiles, device = torch.device('cpu'), in_channels = 1):
         tile_size = int(tiles.shape[2])
         snjp = int(tiles.shape[1] ** 0.5)
         batch_size = int(tiles.shape[0])
@@ -61,15 +55,14 @@ class ResnetJigsaw(pl.LightningModule):
 
                 puzzle[:, tl[0]:br[0], tl[1]:br[1]] = tiles[:, i * snjp + j]
 
-        return puzzle     
+        # Add dimension for channels
+        puzzle = puzzle.unsqueeze(1).repeat(1, in_channels, 1, 1)
+
+        return puzzle # replicates over the given number of channels
 
     def forward(self, x):
-        # [batch, tile# [0-8], H, W]
-        #out = torch.empty(self.ResNet_out_dim, device=self.device, dtype=x.dtype)
-        #for i in range(self.jigsaw_size):
-            # Concatenating all the tiles
-        #    out[i:i+self.ResNet_out_dim] = self.resnet(x[:,i,:,:])
-        x = ResnetJigsaw.tiles_to_image(x, device=self.device).unsqueeze(1)
+        # TODO: copy the image to create multi-channel input
+        x = ResnetJigsaw.tiles_to_image(x, device=self.device, in_channels=self.in_channels)
         
         x = self.resnet(x)
 

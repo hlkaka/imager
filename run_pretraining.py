@@ -28,7 +28,7 @@ from torchsummary import summary
 # Create model
 # Run model
 
-dataset = Constants.ct_only_cleaned_resized
+dataset = Constants.ct_only_cleaned # use ct_only_cleaned_resized for felz
 model_output_parent = Constants.model_outputs
 
 params_file = "params.txt" # where to save params for this run
@@ -51,8 +51,9 @@ n_epochs = 10
 
 in_channels = 3
 
-pre_train = 'felz' # can be 'felz' or 'jigsaw'
+pre_train = 'jigsaw' # can be 'felz' or 'jigsaw'
 num_classes = 6 # for 'felz' pretraining only. 5 segments & 0 for background
+num_shuffles = 1 # for jigsaw pretraining only. how many shuffles to return per image per epoch
 
 optimizer_params = {
         'factor': 0.5,
@@ -77,7 +78,7 @@ def get_dataset(dataset = Constants.ct_only_cleaned_resized):
 
     if pre_train == 'jigsaw':
         ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep,
-            return_tile_coords=True, perm_path=Constants.default_perms)
+            return_tile_coords=True, perm_path=Constants.default_perms, n_shuffles_per_image=num_shuffles)
     elif pre_train == 'felz':
         # Felz masks were saved with foreground being 1,2,3,4 (instead of 255). mask_is_255 flag is CRITICAL
         ctds = CTDicomSlices(dcm_list, preprocessing=prep, n_surrounding=in_channels // 2, mask_is_255=False)
@@ -107,8 +108,8 @@ def train_model(model, model_dir):
 
 def get_model(datasets, batch_size):
     if pre_train == 'jigsaw':
-        m = ResnetJigsaw(datasets, backbone=backbone, 
-            lr=lr, batch_size=batch_size, dl_workers=get_dl_workers())
+        m = ResnetJigsaw(datasets, backbone=backbone, pretrained=(encoder_weights == 'imagenet'), optimizer_params=optimizer_params,
+            lr=lr, batch_size=batch_size, dl_workers=get_dl_workers(), in_channels=in_channels)
         
         summary(m, (9, 64, 64), device='cpu')
 
@@ -144,6 +145,8 @@ if __name__ == '__main__':
 
     params += "\ndataset: {}\nin_channels: {}\npre_train: {}\nencoder_weights: {}\nloss: {}\noptimizer params: {}".format(
                     dataset, in_channels, pre_train, encoder_weights, loss, optimizer_params)
+
+    params += "\nn_shuffles: {} (for jigsaw pretraining only - n shuffles per epoch)".format(num_shuffles)
 
     with open("{}/{}".format(model_dir, params_file), "w") as f:
         f.write(params)
