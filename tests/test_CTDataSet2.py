@@ -35,17 +35,22 @@ def show_jigsaw_dataset(ctds):
         show_images(ctds, image, img_path, coords, tiles)
         prompt_for_quit()
 
-def show_jigsaw_training_dataset(ctds):
+def show_jigsaw_training_dataset(ctds, predict=False):
     '''
     Shows the jigsaw dataset without collate fn
     For "deep" debugging
     '''
-    dl = DataLoader(ctds, batch_size=2, num_workers=0, shuffle=True, collate_fn=jigsaw_training_collate)
+    dl = DataLoader(ctds, batch_size=1, num_workers=0, shuffle=True, collate_fn=jigsaw_training_collate)
+
+    if predict:
+        chkpt = '/mnt/e/HNSCC dataset/trained_models/jigsaw_fixed_random/logs/default/version_0/checkpoints/epoch=99-step=243499.ckpt'
+        model = ResnetJigsaw.load_from_checkpoint(chkpt, datasets= {'train': ctds}, map_location='cpu', in_channels=3)
 
     for all_tiles, labels in dl:
-        tiles = all_tiles[0]
-        print("Label is: {}".format(labels[0]))
-        show_images(ctds, None, None, None, tiles)
+        if predict:
+            print("Prediction is: {} and label is: {}".format(model(all_tiles), labels))
+
+        show_images(ctds, None, None, None, all_tiles)
         prompt_for_quit()
 
 
@@ -82,7 +87,7 @@ if __name__ == '__main__':
 
     prep = transforms.Compose([Window(50, 200), Imagify(50, 200), Normalize(61.0249, 78.3195)])
     ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, trim_edges=True,
-            return_tile_coords=True, perm_path=Constants.default_perms, n_shuffles_per_image=1, n_surrounding=1)
+            return_tile_coords=True, perm_path=Constants.default_perms, n_shuffles_per_image=1)
 
     #show_jigsaw_dataset(ctds)
-    show_jigsaw_training_dataset(ctds)
+    show_jigsaw_training_dataset(ctds, predict=True)

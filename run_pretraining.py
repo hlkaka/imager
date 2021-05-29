@@ -21,6 +21,8 @@ from constants import Constants
 
 from torchsummary import summary
 
+from pytorch_lightning.callbacks import ModelCheckpoint
+
 # Assumes holdout was done
 # Train/val/test split
 # Create dataset
@@ -99,10 +101,13 @@ def get_batch_size():
 def train_model(model, model_dir):
     # Setup trainer
     tb_logger = pl_loggers.TensorBoardLogger('{}/logs/'.format(model_dir))
+
+    checkpoint_callback = ModelCheckpoint(period=5) # save every 5 epochs
+
     if Constants.n_gpus != 0:
-        trainer = Trainer(gpus=Constants.n_gpus, accelerator='ddp_spawn', plugins=DDPPlugin(find_unused_parameters=False), precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
+        trainer = Trainer(gpus=Constants.n_gpus, callbacks=[checkpoint_callback], accelerator='ddp_spawn', plugins=DDPPlugin(find_unused_parameters=False), precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
-        trainer = Trainer(gpus=0, default_root_dir=model_dir, logger=tb_logger, max_epochs=n_epochs)
+        trainer = Trainer(gpus=0, default_root_dir=model_dir, logger=tb_logger, callbacks=[checkpoint_callback], max_epochs=n_epochs)
 
     trainer.fit(model)
 
