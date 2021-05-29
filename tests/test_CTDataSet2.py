@@ -68,7 +68,7 @@ def show_images(ctds, image, img_path, coords, tiles):
                                 edgecolor='g', facecolor='none')
             ax.add_patch(p)
 
-    puzzle = ResnetJigsaw.tiles_to_image(tiles.unsqueeze(0))[0]
+    puzzle = ResnetJigsaw.tiles_to_image(tiles.unsqueeze(0)[:,:,:,:,0].unsqueeze(4), in_channels=1)[0]
 
     ax2 = fig.add_subplot(1, 2, 2)
     ax2.imshow(puzzle, cmap='gray')
@@ -76,13 +76,13 @@ def show_images(ctds, image, img_path, coords, tiles):
     fig.show()
 
 if __name__ == '__main__':
-    dataset = Constants.ct_only_cleaned
+    dataset = '/mnt/g/thesis/ct_only_cleaned_mini' #Constants.ct_only_cleaned
     dcm_list = CTDicomSlices.generate_file_list(dataset,
         dicom_glob='/*/*/dicoms/*.dcm')
 
     prep = transforms.Compose([Window(50, 200), Imagify(50, 200), Normalize(61.0249, 78.3195)])
     ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, trim_edges=True,
-            return_tile_coords=True, perm_path=Constants.default_perms)
+            return_tile_coords=True, perm_path=Constants.default_perms, n_shuffles_per_image=1, n_surrounding=1)
 
     #show_jigsaw_dataset(ctds)
     show_jigsaw_training_dataset(ctds)
