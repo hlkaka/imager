@@ -61,7 +61,7 @@ class ResnetJigsaw(pl.LightningModule):
         return puzzle # replicates over the given number of channels
 
     def forward(self, x):
-        # TODO: copy the image to create multi-channel input
+        # copy the image to create multi-channel input
         x = ResnetJigsaw.tiles_to_image(x, device=self.device, in_channels=self.in_channels)
         
         x = self.resnet(x)

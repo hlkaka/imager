@@ -35,7 +35,7 @@ from pytorch_lightning import Trainer, loggers as pl_loggers
 # Create model
 # Run model
 
-dataset = Constants.organized_dataset_2
+dataset_dir = Constants.organized_dataset_2
 model_output_parent = Constants.model_outputs
 
 val_frac = 0.112
@@ -96,11 +96,11 @@ def get_datasets(model_dir = None, new_ds_split = True,
 
     # Manage patient splits
     if new_ds_split:
-        dsm = DatasetManager.generate_train_val_test(dataset, val_frac, test_frac)
+        dsm = DatasetManager.generate_train_val_test(dataset_dir, val_frac, test_frac)
         if model_dir is not None:
             dsm.save_lists(model_dir)
     else:
-        dsm = DatasetManager.load_train_val_test(dataset, train_list, val_list, test_list)
+        dsm = DatasetManager.load_train_val_test(dataset_dir, train_list, val_list, test_list)
     
     #preprocess_fn = get_preprocessing_fn(backbone, pretrained=encoder_weights)
 
@@ -239,14 +239,14 @@ if __name__ == '__main__':
     # save params
     note = input("Enter title for this training run:")
     params = "note: {}\ndataset: {}\nbatch_size: {}\nbackbone: {}\nencoder_weights: {}\nWL: {}\nWW: {}\nimg_size: {}\nLR: {}\n".format(
-        note, dataset, batch_size, backbone, encoder_weights, WL, WW, img_size, lr
+        note, dataset_dir, batch_size, backbone, encoder_weights, WL, WW, img_size, lr
     )
     params += "\n\n# AUGMENTATIONS\n\n rotation degrees: {}\ntranslate: {}\nscale: {}\ntrain set fraction: {}".format(
         rotate, translate, scale, train_frac
     )
 
-    params += "\ndataset: {}\nin_channels: {}\nOptimizer params: {}\nFrozen backbone {} OR frozen layers {} ".format(
-                    dataset, in_channels, optimizer_params, freeze_backbone, freeze_n_layers)
+    params += "\nin_channels: {}\nOptimizer params: {}\nFrozen backbone {} OR frozen layers {} ".format(
+                    in_channels, optimizer_params, freeze_backbone, freeze_n_layers)
     
     params += '-- Note if the backbone is frozen, then the number of frozen layers is ignored. Also note frozen layers has a bug that exaggerated the number by 1'
 

@@ -43,12 +43,16 @@ def show_jigsaw_training_dataset(ctds, predict=False):
     dl = DataLoader(ctds, batch_size=1, num_workers=0, shuffle=True, collate_fn=jigsaw_training_collate)
 
     if predict:
-        chkpt = '/mnt/e/HNSCC dataset/trained_models/jigsaw_fixed_random/logs/default/version_0/checkpoints/epoch=99-step=243499.ckpt'
+        chkpt = '/mnt/e/HNSCC dataset/trained_models/pretrain_jigsaw_fixed_imagenet/logs/default/version_0/checkpoints/epoch=34-step=85224.ckpt'
         model = ResnetJigsaw.load_from_checkpoint(chkpt, datasets= {'train': ctds}, map_location='cpu', in_channels=3)
 
     for all_tiles, labels in dl:
         if predict:
-            print("Prediction is: {} and label is: {}".format(model(all_tiles), labels))
+            logits = model(all_tiles)
+            print("Loss is: {}".format(model.loss(logits, labels)))
+            sm = torch.nn.functional.softmax(logits, dim=1)
+            prdct_class = torch.argmax(sm)
+            print("Prediction is: {} and label is: {}".format(prdct_class, labels))
 
         show_images(ctds, None, None, None, all_tiles)
         prompt_for_quit()
@@ -73,10 +77,10 @@ def show_images(ctds, image, img_path, coords, tiles):
                                 edgecolor='g', facecolor='none')
             ax.add_patch(p)
 
-    puzzle = ResnetJigsaw.tiles_to_image(tiles.unsqueeze(0)[:,:,:,:,0].unsqueeze(4), in_channels=1)[0]
+    puzzle = ResnetJigsaw.tiles_to_image(tiles, in_channels=1)[0]
 
     ax2 = fig.add_subplot(1, 2, 2)
-    ax2.imshow(puzzle, cmap='gray')
+    ax2.imshow(puzzle[0], cmap='gray')
 
     fig.show()
 
@@ -85,8 +89,8 @@ if __name__ == '__main__':
     dcm_list = CTDicomSlices.generate_file_list(dataset,
         dicom_glob='/*/*/dicoms/*.dcm')
 
-    prep = transforms.Compose([Window(50, 200), Imagify(50, 200), Normalize(61.0249, 78.3195)])
-    ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, trim_edges=True,
+    prep = transforms.Compose([Window(50, 200), Imagify(50, 200)]) #, Normalize(61.0249, 78.3195)])
+    ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, trim_edges=False,
             return_tile_coords=True, perm_path=Constants.default_perms, n_shuffles_per_image=1)
 
     #show_jigsaw_dataset(ctds)

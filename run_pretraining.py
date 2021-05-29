@@ -30,7 +30,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 # Create model
 # Run model
 
-dataset = Constants.ct_only_cleaned # use ct_only_cleaned_resized for felz
+dataset_dir = Constants.ct_only_cleaned # use ct_only_cleaned_resized for felz
 model_output_parent = Constants.model_outputs
 
 params_file = "params.txt" # where to save params for this run
@@ -44,7 +44,7 @@ WW = 200
 mean = 61.0249
 std = 78.3195
 
-lr = 0.0001
+lr = 0.01
 
 cpu_batch_size = 2
 gpu_batch_size = 32
@@ -102,7 +102,7 @@ def train_model(model, model_dir):
     # Setup trainer
     tb_logger = pl_loggers.TensorBoardLogger('{}/logs/'.format(model_dir))
 
-    checkpoint_callback = ModelCheckpoint(period=5) # save every 5 epochs
+    checkpoint_callback = ModelCheckpoint(save_last=True, every_n_train_steps=5000) # save every 5000 steps
 
     if Constants.n_gpus != 0:
         trainer = Trainer(gpus=Constants.n_gpus, callbacks=[checkpoint_callback], accelerator='ddp_spawn', plugins=DDPPlugin(find_unused_parameters=False), precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
@@ -116,6 +116,9 @@ def get_model(datasets, batch_size):
         m = ResnetJigsaw(datasets, backbone=backbone, pretrained=(encoder_weights == 'imagenet'), optimizer_params=optimizer_params,
             lr=lr, batch_size=batch_size, dl_workers=get_dl_workers(), in_channels=in_channels)
         
+        #chkpt = '/mnt/e/HNSCC dataset/trained_models/pretrain_jigsaw_fixed_imagenet/logs/default/version_0/checkpoints/epoch=34-step=85224.ckpt'
+        #m = ResnetJigsaw.load_from_checkpoint(chkpt, datasets=datasets, map_location='cpu', in_channels=3)
+
         summary(m, (9, 64, 64), device='cpu')
 
     elif pre_train == 'felz':
@@ -135,7 +138,7 @@ if __name__ == '__main__':
     model_dir = "{}/pretrain-{}".format(model_output_parent, get_time())
     os.makedirs(model_dir, exist_ok=True)
     
-    dataset = get_dataset()
+    dataset = get_dataset(dataset_dir)
     batch_size = get_batch_size()
 
     # create model
@@ -145,11 +148,11 @@ if __name__ == '__main__':
     # save params
     note = input("Enter title for this training run:")
     params = "note: {}\ndataset: {}\nbatch_size: {}\nbackbone: {}\nWL: {}\nWW: {}\nmean: {}\nstd: {}\ntile_size: 64\nLR: {}\n".format(
-        note, dataset, batch_size, backbone, WL, WW, mean, std, lr
+        note, dataset_dir, batch_size, backbone, WL, WW, mean, std, lr
     )
 
-    params += "\ndataset: {}\nin_channels: {}\npre_train: {}\nencoder_weights: {}\nloss: {}\noptimizer params: {}".format(
-                    dataset, in_channels, pre_train, encoder_weights, loss, optimizer_params)
+    params += "\nin_channels: {}\npre_train: {}\nencoder_weights: {}\nloss: {}\noptimizer params: {}".format(
+                    in_channels, pre_train, encoder_weights, loss, optimizer_params)
 
     params += "\nn_shuffles: {} (for jigsaw pretraining only - n shuffles per epoch)".format(num_shuffles)
 
