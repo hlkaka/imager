@@ -78,7 +78,7 @@ def get_dataset(dataset = Constants.ct_only_cleaned_resized):
 
     prep = transforms.Compose([Window(WL, WW), Imagify(WL, WW)]) #, Normalize(mean, std)])
 
-    if pre_train == 'jigsaw':
+    if pre_train == 'jigsaw' or pre_train == 'jigsaw_ennead':
         ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep,
             return_tile_coords=True, perm_path=Constants.default_perms, n_shuffles_per_image=num_shuffles)
     elif pre_train == 'felz':
