@@ -43,7 +43,7 @@ def show_jigsaw_training_dataset(ctds, predict=False):
     dl = DataLoader(ctds, batch_size=1, num_workers=0, shuffle=True, collate_fn=jigsaw_training_collate)
 
     if predict:
-        chkpt = '/mnt/e/HNSCC dataset/trained_models/pretrain_jigsaw_fixed_imagenet/logs/default/version_0/checkpoints/epoch=34-step=85224.ckpt'
+        chkpt = '/mnt/e/HNSCC dataset/trained_models/pretrain_jigsaw_fixed2_imagenet/logs/default/version_0/checkpoints/last.ckpt'
         model = ResnetJigsaw.load_from_checkpoint(chkpt, datasets= {'train': ctds}, map_location='cpu', in_channels=3)
 
     for all_tiles, labels in dl:
@@ -85,9 +85,9 @@ def show_images(ctds, image, img_path, coords, tiles):
     fig.show()
 
 if __name__ == '__main__':
-    dataset = '/mnt/g/thesis/ct_only_cleaned_mini' #Constants.ct_only_cleaned
+    dataset = Constants.organized_dataset_2 #'/mnt/g/thesis/ct_only_cleaned_mini' #Constants.ct_only_cleaned
     dcm_list = CTDicomSlices.generate_file_list(dataset,
-        dicom_glob='/*/*/dicoms/*.dcm')
+        dicom_glob='/*/dicoms/*.dcm') #dicom_glob='/*/*/dicoms/*.dcm')
 
     prep = transforms.Compose([Window(50, 200), Imagify(50, 200)]) #, Normalize(61.0249, 78.3195)])
     ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, trim_edges=False,
