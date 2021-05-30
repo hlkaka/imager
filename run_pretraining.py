@@ -53,9 +53,11 @@ n_epochs = 50
 
 in_channels = 3
 
-pre_train = 'jigsaw' # can be 'felz', 'jigsaw_ennead' or 'jigsaw'
+pre_train = 'jigsaw_ennead' # can be 'felz', 'jigsaw_ennead' or 'jigsaw'
 num_classes = 6 # for 'felz' pretraining only. 5 segments & 0 for background
 num_shuffles = 1 # for jigsaw pretraining only. how many shuffles to return per image per epoch
+
+n_perms = 100
 
 optimizer_params = None #{
 #        'factor': 0.5,
@@ -79,8 +81,8 @@ def get_dataset(dataset = Constants.ct_only_cleaned_resized):
     prep = transforms.Compose([Window(WL, WW), Imagify(WL, WW)]) #, Normalize(mean, std)])
 
     if pre_train == 'jigsaw' or pre_train == 'jigsaw_ennead':
-        ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep,
-            return_tile_coords=True, perm_path=Constants.default_perms, n_shuffles_per_image=num_shuffles)
+        ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, return_tile_coords=True,
+            perm_path=Constants.default_perms, n_shuffles_per_image=num_shuffles, num_perms=n_perms)
     elif pre_train == 'felz':
         # Felz masks were saved with foreground being 1,2,3,4 (instead of 255). mask_is_255 flag is CRITICAL
         ctds = CTDicomSlices(dcm_list, preprocessing=prep, n_surrounding=in_channels // 2, mask_is_255=False)
@@ -103,7 +105,7 @@ def train_model(model, model_dir):
     tb_logger = pl_loggers.TensorBoardLogger('{}/logs/'.format(model_dir))
 
     chkpt1 = ModelCheckpoint(save_last=True) 
-    chkpt2 = ModelCheckpoint(every_n_train_steps=10000) # save every 5000 steps
+    chkpt2 = ModelCheckpoint(every_n_train_steps=10000) # save every 10000 steps
 
     if Constants.n_gpus != 0:
         trainer = Trainer(gpus=Constants.n_gpus, callbacks=[chkpt1, chkpt2], accelerator='ddp_spawn', plugins=DDPPlugin(find_unused_parameters=False), precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
@@ -118,13 +120,13 @@ def get_model(datasets, batch_size):
         #m = ResnetJigsaw.load_from_checkpoint(chkpt, datasets=datasets, map_location='cpu', in_channels=3)
 
         m = ResnetJigsaw(datasets, backbone=backbone, pretrained=(encoder_weights == 'imagenet'), optimizer_params=optimizer_params,
-            lr=lr, batch_size=batch_size, dl_workers=get_dl_workers(), in_channels=in_channels)
+            lr=lr, batch_size=batch_size, dl_workers=get_dl_workers(), in_channels=in_channels, num_permutations=n_perms)
         
         summary(m, (9, 64, 64), device='cpu')
 
     if pre_train == 'jigsaw_ennead':
         m = ResnetJigsaw_Ennead(datasets, backbone=backbone, pretrained=(encoder_weights == 'imagenet'), optimizer_params=optimizer_params,
-            lr=lr, batch_size=batch_size, dl_workers=get_dl_workers(), in_channels=in_channels)
+            lr=lr, batch_size=batch_size, dl_workers=get_dl_workers(), in_channels=in_channels, num_permutations=n_perms)
 
         summary(m, (9, 64, 64), device='cpu')
 
@@ -161,7 +163,7 @@ if __name__ == '__main__':
     params += "\nin_channels: {}\npre_train: {}\nencoder_weights: {}\nloss: {}\noptimizer params: {}".format(
                     in_channels, pre_train, encoder_weights, loss, optimizer_params)
 
-    params += "\nn_shuffles: {} (for jigsaw pretraining only - n shuffles per epoch)".format(num_shuffles)
+    params += "\nn_shuffles: {} (for jigsaw pretraining only - n shuffles per epoch)\nnum_permutations: {}".format(num_shuffles, n_perms)
 
     with open("{}/{}".format(model_dir, params_file), "w") as f:
         f.write(params)

@@ -694,13 +694,16 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
 
     def load_permutations(self, perm_path :str, num :int = 1000, replace = False):
         '''
-        If the given file exists, loads their permutations.
+        If the given file exists, loads their permutations. If the file contains more perms than required, selects only the first num
         If it does not (or any error exists), then creates new (num) permutations and saves them.
         If replace is true, then replaces existing permutations anyway.
         '''
         if perm_path is not None and replace == False and os.path.exists(perm_path):
             try:
                 self.perms = np.load(perm_path)
+                assert(len(self.perms) >= num)
+                if (len(self.perms) > num):
+                    self.perms = self.perms[0:num]
                 print('Permutations file was read at {}'.format(perm_path))
                 return
             except IOError as err:
