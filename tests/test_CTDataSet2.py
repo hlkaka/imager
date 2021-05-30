@@ -43,7 +43,9 @@ def show_jigsaw_training_dataset(ctds, predict=False):
     dl = DataLoader(ctds, batch_size=1, num_workers=0, shuffle=True, collate_fn=jigsaw_training_collate)
 
     if predict:
+        #chkpt = '/mnt/g/thesis/model_runs/pretrained_jigsaw_resnet34/logs/default/version_0/checkpoints/epoch=9-step=48689.ckpt' 
         chkpt = '/mnt/e/HNSCC dataset/trained_models/pretrain_jigsaw_fixed2_imagenet/logs/default/version_0/checkpoints/last.ckpt'
+
         model = ResnetJigsaw.load_from_checkpoint(chkpt, datasets= {'train': ctds}, map_location='cpu', in_channels=3)
 
     for all_tiles, labels in dl:
@@ -56,7 +58,6 @@ def show_jigsaw_training_dataset(ctds, predict=False):
 
         show_images(ctds, None, None, None, all_tiles)
         prompt_for_quit()
-
 
 def show_images(ctds, image, img_path, coords, tiles):
     fig = plt.figure(figsize=(15, 15))

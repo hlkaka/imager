@@ -13,7 +13,7 @@ from datetime import datetime
 sys.path.append('.')
 from data.CTDataSet import CTDicomSlices, CTDicomSlicesJigsaw
 from data.CustomTransforms import Window, Imagify
-from models.ResNet_jigsaw import ResnetJigsaw
+from models.ResNet_jigsaw import ResnetJigsaw, ResnetJigsaw_Ennead
 from run_model import get_dl_workers
 from models.UNet_L import UNet_no_val
 
@@ -47,22 +47,22 @@ std = 78.3195
 lr = 0.01
 
 cpu_batch_size = 2
-gpu_batch_size = 32
+gpu_batch_size = 64
 
-n_epochs = 10
+n_epochs = 50
 
 in_channels = 3
 
-pre_train = 'jigsaw' # can be 'felz' or 'jigsaw'
+pre_train = 'jigsaw' # can be 'felz', 'jigsaw_ennead' or 'jigsaw'
 num_classes = 6 # for 'felz' pretraining only. 5 segments & 0 for background
 num_shuffles = 1 # for jigsaw pretraining only. how many shuffles to return per image per epoch
 
-optimizer_params = {
-        'factor': 0.5,
-        'patience': 2, 
-        'cooldown': 0, 
-        'min_lr': 1e-6
-}
+optimizer_params = None #{
+#        'factor': 0.5,
+#        'patience': 2, 
+#        'cooldown': 0, 
+#        'min_lr': 1e-6
+#}
 
 def get_time():
     now = datetime.now()
@@ -113,11 +113,17 @@ def train_model(model, model_dir):
 
 def get_model(datasets, batch_size):
     if pre_train == 'jigsaw':
+        #chkpt = '/mnt/e/HNSCC dataset/trained_models/pretrain_jigsaw_fixed_imagenet/logs/default/version_0/checkpoints/epoch=34-step=85224.ckpt'
+        #m = ResnetJigsaw.load_from_checkpoint(chkpt, datasets=datasets, map_location='cpu', in_channels=3)
+
         m = ResnetJigsaw(datasets, backbone=backbone, pretrained=(encoder_weights == 'imagenet'), optimizer_params=optimizer_params,
             lr=lr, batch_size=batch_size, dl_workers=get_dl_workers(), in_channels=in_channels)
         
-        #chkpt = '/mnt/e/HNSCC dataset/trained_models/pretrain_jigsaw_fixed_imagenet/logs/default/version_0/checkpoints/epoch=34-step=85224.ckpt'
-        #m = ResnetJigsaw.load_from_checkpoint(chkpt, datasets=datasets, map_location='cpu', in_channels=3)
+        summary(m, (9, 64, 64), device='cpu')
+
+    if pre_train == 'jigsaw_ennead':
+        m = ResnetJigsaw_Ennead(datasets, backbone=backbone, pretrained=(encoder_weights == 'imagenet'), optimizer_params=optimizer_params,
+            lr=lr, batch_size=batch_size, dl_workers=get_dl_workers(), in_channels=in_channels)
 
         summary(m, (9, 64, 64), device='cpu')
 

@@ -42,6 +42,11 @@ class ResnetJigsaw(pl.LightningModule):
 
     @classmethod
     def tiles_to_image(cls, tiles, device = torch.device('cpu'), in_channels = 1):
+        '''
+        Converts tiles to a puzzle image
+        Also replicates across given number of channels if provided
+        '''
+        # tiles is [batch_size, tile_n, tile H, tile W]
         tile_size = int(tiles.shape[2])
         snjp = int(tiles.shape[1] ** 0.5)
         batch_size = int(tiles.shape[0])
@@ -58,12 +63,14 @@ class ResnetJigsaw(pl.LightningModule):
         # Add dimension for channels
         puzzle = puzzle.unsqueeze(1).repeat(1, in_channels, 1, 1)
 
+        # puzzle is [batch_size, C, puzzle H, puzzle W]
         return puzzle # replicates over the given number of channels
 
     def forward(self, x):
-        # copy the image to create multi-channel input
+        # x is [batch_size, tile_n, tile H, tile W]
         x = ResnetJigsaw.tiles_to_image(x, device=self.device, in_channels=self.in_channels)
         
+        # here, x is [batch_size, C, puzzle H, puzzle W]
         x = self.resnet(x)
 
         return x
@@ -99,4 +106,40 @@ class ResnetJigsaw(pl.LightningModule):
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=factor, patience=patience, cooldown=cooldown, min_lr=min_lr)
 
         return [optimizer] #, [scheduler]
-    
+
+class ResnetJigsaw_Ennead(ResnetJigsaw):
+    def __init__(self, datasets, backbone = 'resnet34',
+                 batch_size :int = 32, lr = 0.0001, dl_workers = 8,
+                 optimizer_params = None, fc_size = 512,
+                 num_permutations = 1000, in_channels = 1, pretrained=False):
+
+        super().__init__(datasets, backbone=backbone, batch_size=batch_size, lr=lr, dl_workers=dl_workers,
+                optimizer_params=optimizer_params, num_permutations=num_permutations, in_channels=in_channels, pretrained=pretrained)
+
+        num_ftrs = self.resnet.fc.in_features
+        self.resnet.fc = torch.nn.Linear(num_ftrs, fc_size)
+
+        self.puzzle_pieces = 9  # currently hardcoded. may be changed in future
+
+        # fc7 is first context layer - same name convention as paper
+        self.fc7 = torch.nn.Linear(fc_size * self.puzzle_pieces, 4096)
+        self.fc8 = torch.nn.Linear(4096, num_permutations)
+
+    def forward(self, x):
+        # x is [batch_size, tile_n, tile H, tile W]
+        # replicate across the number of channels to make x = [batch_size, tile_n, C, tile H, tile W]
+        x = x.unsqueeze(2).repeat(1, 1, self.in_channels, 1, 1)
+
+        all_outs = []
+
+        for i in range(self.puzzle_pieces):
+            all_outs.append(self.resnet(x[:, i]))  # pass each tile independently
+
+        # each item in all_outs has dim [batch_size, fc_size]
+        # concatenate to [batch_size, fc_size * self.puzzle_pieces]
+
+        x = torch.cat(all_outs, dim=1)
+        x = self.fc7(x)
+        x = self.fc8(x)
+
+        return x
