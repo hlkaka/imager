@@ -11,7 +11,7 @@ from torchvision import transforms
 from datetime import datetime
 
 sys.path.append('.')
-from data.CTDataSet import CTDicomSlices, CTDicomSlicesJigsaw
+from data.CTDataSet import CTDicomSlices, CTDicomSlicesJigsaw, DatasetManager
 from data.CustomTransforms import Window, Imagify
 from models.ResNet_jigsaw import ResnetJigsaw, ResnetJigsaw_Ennead
 from run_model import get_dl_workers
@@ -44,16 +44,16 @@ WW = 200
 mean = 61.0249
 std = 78.3195
 
-lr = 0.01
+lr = 0.00001
 
 cpu_batch_size = 2
-gpu_batch_size = 64
+gpu_batch_size = 32
 
 n_epochs = 50
 
 in_channels = 3
 
-pre_train = 'jigsaw_ennead' # can be 'felz', 'jigsaw_ennead' or 'jigsaw'
+pre_train = 'jigsaw' # can be 'felz', 'jigsaw_ennead' or 'jigsaw'
 num_classes = 6 # for 'felz' pretraining only. 5 segments & 0 for background
 num_shuffles = 1 # for jigsaw pretraining only. how many shuffles to return per image per epoch
 
@@ -70,26 +70,43 @@ def get_time():
     now = datetime.now()
     return now.strftime("%Y-%m-%d-%H:%M:%S")
 
-def get_dataset(dataset = Constants.ct_only_cleaned_resized):
+def get_dataset(dataset, model_dir):
     '''
     Builds the necessary datasets
     '''
     # create ds
-    dcm_list = CTDicomSlicesJigsaw.generate_file_list(dataset,
-        dicom_glob='/*/*/dicoms/*.dcm')
+    #dcm_list = CTDicomSlicesJigsaw.generate_file_list(dataset,
+    #    dicom_glob='/*/*/dicoms/*.dcm')
 
     prep = transforms.Compose([Window(WL, WW), Imagify(WL, WW)]) #, Normalize(mean, std)])
 
     if pre_train == 'jigsaw' or pre_train == 'jigsaw_ennead':
-        ctds = CTDicomSlicesJigsaw(dcm_list, preprocessing=prep, return_tile_coords=True,
+        dsm = DatasetManager.generate_train_val_test(dataset, val_frac=0.05, test_frac=0, pretrain_ds=True)
+        if model_dir is not None:
+            dsm.save_lists(model_dir)
+
+        train_dicoms, val_dicoms, _ = dsm.get_dicoms()
+
+        datasets = {}
+        datasets['train'] = CTDicomSlicesJigsaw(train_dicoms, preprocessing=prep, return_tile_coords=True,
             perm_path=Constants.default_perms, n_shuffles_per_image=num_shuffles, num_perms=n_perms)
+        
+        datasets['val'] = CTDicomSlicesJigsaw(val_dicoms, preprocessing=prep, return_tile_coords=True,
+            perm_path=Constants.default_perms, n_shuffles_per_image=num_shuffles, num_perms=n_perms)
+
+        return datasets
+
     elif pre_train == 'felz':
+        dcm_list = CTDicomSlicesJigsaw.generate_file_list(dataset,
+                dicom_glob='/*/*/dicoms/*.dcm')
+
         # Felz masks were saved with foreground being 1,2,3,4 (instead of 255). mask_is_255 flag is CRITICAL
         ctds = CTDicomSlices(dcm_list, preprocessing=prep, n_surrounding=in_channels // 2, mask_is_255=False)
+        
+        return ctds
+
     else:
         raise Exception('Invalid pre_train mode of "{}"'.format(pre_train))
-
-    return ctds
 
 def get_batch_size():
     # Setup trainer
@@ -116,9 +133,6 @@ def train_model(model, model_dir):
 
 def get_model(datasets, batch_size):
     if pre_train == 'jigsaw':
-        #chkpt = '/mnt/e/HNSCC dataset/trained_models/pretrain_jigsaw_fixed_imagenet/logs/default/version_0/checkpoints/epoch=34-step=85224.ckpt'
-        #m = ResnetJigsaw.load_from_checkpoint(chkpt, datasets=datasets, map_location='cpu', in_channels=3)
-
         m = ResnetJigsaw(datasets, backbone=backbone, pretrained=(encoder_weights == 'imagenet'), optimizer_params=optimizer_params,
             lr=lr, batch_size=batch_size, dl_workers=get_dl_workers(), in_channels=in_channels, num_permutations=n_perms)
         
@@ -147,7 +161,7 @@ if __name__ == '__main__':
     model_dir = "{}/pretrain-{}".format(model_output_parent, get_time())
     os.makedirs(model_dir, exist_ok=True)
     
-    dataset = get_dataset(dataset_dir)
+    dataset = get_dataset(dataset_dir, model_dir)
     batch_size = get_batch_size()
 
     # create model

@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 import glob
 import os
+from os.path import basename, dirname
 import SimpleITK as sitk
 import numpy as np
 import random
@@ -742,13 +743,19 @@ class DatasetManager():
         self.test = test
 
     @classmethod
-    def generate_train_val_test(cls, patient_dir :str, val_frac :float = 0.112, test_frac :float = 0.112):
+    def generate_train_val_test(cls, patient_dir :str, val_frac :float = 0.112, test_frac :float = 0.112, pretrain_ds=False):
         '''
         Returns a DatasetManager containing the given split of training, validation and test sets on the 
         patient level.
         '''
-        pt_list = glob.glob("{}/*".format(patient_dir))
-        pt_list = [os.path.basename(p) for p in pt_list]
+        ds_name = lambda p: basename(dirname(p))
+
+        if pretrain_ds:
+            pt_list = glob.glob("{}/*/*".format(patient_dir))
+            pt_list = ["{}/{}".format(ds_name(p), basename(p)) for p in pt_list]
+        else:
+            pt_list = glob.glob("{}/*".format(patient_dir))
+            pt_list = [basename(p) for p in pt_list]
 
         random.shuffle(pt_list)
 

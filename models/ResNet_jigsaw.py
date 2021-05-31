@@ -80,17 +80,28 @@ class ResnetJigsaw(pl.LightningModule):
         
         y_hat = self(images)
         loss = self.loss(y_hat, labels)
-
-        # Logs
-        #tensorboard_logs = {'train_loss': loss}
         
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_loss', loss, on_step=True, on_epoch=True, logger=True)
+        
+        return loss
+    
+    def validation_step(self, batch, batch_idx):
+        images, labels = batch
+        
+        y_hat = self(images)
+        loss = self.loss(y_hat, labels)
+        
+        self.log('validation_loss', loss, on_epoch=True, prog_bar=True, logger=True)
         
         return loss
 
     def train_dataloader(self):
-        return DataLoader(self.datasets, persistent_workers=True, batch_size=self.batch_size, num_workers = self.dl_workers,
+        return DataLoader(self.datasets['train'], persistent_workers=False, batch_size=self.batch_size, num_workers = self.dl_workers,
                           shuffle=True, collate_fn=jigsaw_training_collate)
+
+    def val_dataloader(self):
+        return DataLoader(self.datasets['val'], persistent_workers=False, batch_size=self.batch_size, num_workers = self.dl_workers,
+                          shuffle=False, collate_fn=jigsaw_training_collate)
 
     
     def configure_optimizers(self):
