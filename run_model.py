@@ -171,7 +171,7 @@ def get_model(datasets, batch_size):
         m = UNet(datasets, backbone=backbone, batch_size=batch_size, optimizer_params=optimizer_params,
                 in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=encoder_weights, lr=lr)
 
-        pretrained = ResnetJigsaw.load_from_checkpoint(resnet_checkpoint, datasets= datasets['train'], map_location='cpu', in_channels=in_channels)
+        pretrained = ResnetJigsaw.load_from_checkpoint(resnet_checkpoint, datasets= datasets['train'], map_location='cpu', in_channels=in_channels, num_permutations=100)
 
         # This commented line is for viewing past models
         #pretrained_2 = UNet.load_from_checkpoint('/mnt/e/HNSCC dataset/trained_models/14 - 100_epochs_resnet34_encoder_nonfrozen_single_slice/lightning_logs/version_0/checkpoints/epoch=72.ckpt', strict=False, datasets= datasets['train'], map_location='cpu', in_channels=1)
@@ -249,6 +249,7 @@ if __name__ == '__main__':
                     in_channels, optimizer_params, freeze_backbone, freeze_n_layers)
     
     params += '-- Note if the backbone is frozen, then the number of frozen layers is ignored. Also note frozen layers has a bug that exaggerated the number by 1'
+    params += '\nCheckpoint: {} -- {}\n'.format(resnet_checkpoint, unet_checkpoint)
 
     with open("{}/{}".format(model_dir, params_file), "w") as f:
         f.write(params)
