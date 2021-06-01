@@ -4,9 +4,6 @@ Script to run the model
 import os
 import sys
 
-from pytorch_lightning import Trainer
-from pytorch_lightning.utilities.seed import seed_everything
-from pytorch_lightning.plugins import DDPPlugin
 from torchvision import transforms
 from segmentation_models_pytorch.base.heads import SegmentationHead
 
@@ -24,7 +21,9 @@ from models.ResNet_jigsaw import ResnetJigsaw
 from constants import Constants
 
 from torchsummary import summary
-from pytorch_lightning import Trainer, loggers as pl_loggers
+from pytorch_lightning import Trainer, loggers as pl_loggers, callbacks
+from pytorch_lightning.utilities.seed import seed_everything
+from pytorch_lightning.plugins import DDPPlugin
 
 # Consider removing sys.path.append and trying to refer to scripts as data.CTDataSet etc
 
@@ -137,12 +136,15 @@ def get_batch_size():
 def train_model(model, model_dir):
     # Setup trainer
 
+    cb1 = callbacks.ModelCheckpoint(filename='best-{epoch}', monitor='val_loss_mean', save_top_k=1, mode='min')
+    cb2 = callbacks.ModelCheckpoint(filename='last-{epoch}', save_last=True)
+
     tb_logger = pl_loggers.TensorBoardLogger('{}/logs/'.format(model_dir))
     if Constants.n_gpus != 0:
         #trainer = Trainer(gpus=Constants.n_gpus, distributed_backend='ddp', logger = tb_logger, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
-        trainer = Trainer(gpus=Constants.n_gpus, plugins=DDPPlugin(find_unused_parameters=False), accelerator='ddp_spawn', precision=16, logger = tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
+        trainer = Trainer(gpus=Constants.n_gpus, callbacks=[cb1, cb2], plugins=DDPPlugin(find_unused_parameters=False), accelerator='ddp_spawn', precision=16, logger = tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
-        trainer = Trainer(gpus=0, default_root_dir=model_dir, logger = tb_logger, distributed_backend='ddp_spawn', max_epochs=n_epochs)
+        trainer = Trainer(gpus=0, default_root_dir=model_dir, callbacks=[cb1, cb2], logger = tb_logger, distributed_backend='ddp_spawn', max_epochs=n_epochs)
     
     trainer.fit(model)
     trainer.test()
