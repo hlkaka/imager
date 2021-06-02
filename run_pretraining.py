@@ -13,7 +13,7 @@ from datetime import datetime
 sys.path.append('.')
 from data.CTDataSet import CTDicomSlices, CTDicomSlicesJigsaw, DatasetManager
 from data.CustomTransforms import Window, Imagify
-from models.ResNet_jigsaw import ResnetJigsaw, ResnetJigsaw_Ennead
+from models.ResNet_jigsaw import ResnetJigsaw, ResnetJigsawSR, ResnetJigsaw_Ennead
 from run_model import get_dl_workers
 from models.UNet_L import UNet_no_val
 
@@ -53,7 +53,7 @@ n_epochs = 50
 
 in_channels = 3
 
-pre_train = 'jigsaw' # can be 'felz', 'jigsaw_ennead' or 'jigsaw'
+pre_train = 'jigsaw_softrank' # can be 'felz', 'jigsaw_ennead', jigsaw_softrank' or 'jigsaw'
 num_classes = 6 # for 'felz' pretraining only. 5 segments & 0 for background
 num_shuffles = 1 # for jigsaw pretraining only. how many shuffles to return per image per epoch
 
@@ -80,7 +80,10 @@ def get_dataset(dataset, model_dir):
 
     prep = transforms.Compose([Window(WL, WW), Imagify(WL, WW)]) #, Normalize(mean, std)])
 
-    if pre_train == 'jigsaw' or pre_train == 'jigsaw_ennead':
+    if pre_train == 'jigsaw' or pre_train == 'jigsaw_ennead' or pre_train == 'jigsaw_softrank':
+        if pre_train == 'jigsaw_softrank':
+            n_perms = None
+
         dsm = DatasetManager.generate_train_val_test(dataset, val_frac=0.05, test_frac=0, pretrain_ds=True)
         if model_dir is not None:
             dsm.save_lists(model_dir)
@@ -138,10 +141,16 @@ def get_model(datasets, batch_size):
         
         summary(m, (9, 64, 64), device='cpu')
 
-    if pre_train == 'jigsaw_ennead':
+    elif pre_train == 'jigsaw_ennead':
         m = ResnetJigsaw_Ennead(datasets, backbone=backbone, pretrained=(encoder_weights == 'imagenet'), optimizer_params=optimizer_params,
             lr=lr, batch_size=batch_size, dl_workers=get_dl_workers(), in_channels=in_channels, num_permutations=n_perms)
 
+        summary(m, (9, 64, 64), device='cpu')
+
+    elif pre_train == 'jigsaw_softrank':
+        m = ResnetJigsawSR(datasets, backbone=backbone, pretrained=(encoder_weights == 'imagenet'), optimizer_params=optimizer_params,
+            lr=lr, batch_size=batch_size, dl_workers=get_dl_workers(), in_channels=in_channels)
+        
         summary(m, (9, 64, 64), device='cpu')
 
     elif pre_train == 'felz':

@@ -559,7 +559,10 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
         self.return_tile_coords = return_tile_coords
         self.n_shuffles_per_image = n_shuffles_per_image
 
-        self.load_permutations(perm_path, num = num_perms, replace = False)
+        if num_perms is not None:
+            self.load_permutations(perm_path, num = num_perms, replace = False)
+        else:
+            self.perms = None
 
     def ensure_min_size(self, image):
         ''' Ensures each dimension of the image is >= self.min_img_size '''
@@ -660,9 +663,15 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
         all_labels = []
 
         for i in range(0, self.n_shuffles_per_image):
-            random_perm = random.randint(0, len(self.perms) - 1)
-            all_labels.append(random_perm)
-            all_tiles.append(tiles[self.perms[random_perm]])
+            if self.perms is not None:
+                random_perm = random.randint(0, len(self.perms) - 1)
+                all_labels.append(random_perm)
+                all_tiles.append(tiles[self.perms[random_perm]])
+            else:
+                random_perm = np.arange(self.snjp ** 2)
+                np.random.shuffle(random_perm)
+                all_labels.append(random_perm.astype('float32'))
+                all_tiles.append(tiles[random_perm])
 
         all_tiles = np.stack(all_tiles, axis=0)
         all_labels = np.array(all_labels)

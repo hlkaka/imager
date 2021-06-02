@@ -6,6 +6,7 @@ import torch.nn as nn
 import sys
 sys.path.append('.')
 from data.CTDataSet import jigsaw_training_collate
+from models.soft_rank import SoftRank
 
 # For permutation generation with maximal Hamming distance
 # https://github.com/bbrattoli/JigsawPuzzlePytorch
@@ -79,7 +80,7 @@ class ResnetJigsaw(pl.LightningModule):
         images, labels = batch
         
         y_hat = self(images)
-        loss = self.loss(y_hat, labels)
+        loss = self.loss(y_hat, labels.float())
         
         self.log('train_loss', loss, on_step=True, on_epoch=True, logger=True)
         
@@ -96,11 +97,11 @@ class ResnetJigsaw(pl.LightningModule):
         return loss
 
     def train_dataloader(self):
-        return DataLoader(self.datasets['train'], persistent_workers=True, batch_size=self.batch_size, num_workers = self.dl_workers,
+        return DataLoader(self.datasets['train'], persistent_workers=False, batch_size=self.batch_size, num_workers = self.dl_workers,
                           shuffle=True, collate_fn=jigsaw_training_collate)
 
     def val_dataloader(self):
-        return DataLoader(self.datasets['val'], persistent_workers=True, batch_size=self.batch_size, num_workers = self.dl_workers,
+        return DataLoader(self.datasets['val'], persistent_workers=False, batch_size=self.batch_size, num_workers = self.dl_workers,
                           shuffle=False, collate_fn=jigsaw_training_collate)
 
     
@@ -154,3 +155,26 @@ class ResnetJigsaw_Ennead(ResnetJigsaw):
         x = self.fc8(x)
 
         return x
+
+class ResnetJigsawSR(ResnetJigsaw):
+    def __init__(self, datasets, backbone = 'resnet34',
+                 batch_size :int = 32, lr = 0.0001, dl_workers = 8,
+                 optimizer_params = None,
+                 num_permutations = 1000, in_channels = 1, pretrained=False):
+
+        super().__init__(datasets, backbone=backbone, batch_size=batch_size, lr=lr,
+                dl_workers=dl_workers, optimizer_params=optimizer_params, num_permutations=num_permutations,
+                in_channels=in_channels, pretrained=pretrained)
+
+        puzzle_size = 9
+
+        num_ftrs = self.resnet.fc.in_features
+        self.resnet.fc = torch.nn.Linear(num_ftrs, puzzle_size)
+        self.soft_rank = SoftRank(length = puzzle_size, direction="ASCENDING")
+        self.loss = torch.nn.MSELoss(reduction='mean')
+
+    def forward(self, x):
+        x = super().forward(x)
+        x = self.soft_rank(x)
+        return x
+        
