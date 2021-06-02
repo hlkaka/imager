@@ -670,7 +670,7 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
             else:
                 random_perm = np.arange(self.snjp ** 2)
                 np.random.shuffle(random_perm)
-                all_labels.append(random_perm.astype('float32'))
+                all_labels.append(random_perm)
                 all_tiles.append(tiles[random_perm])
 
         all_tiles = np.stack(all_tiles, axis=0)

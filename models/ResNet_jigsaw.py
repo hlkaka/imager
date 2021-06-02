@@ -80,7 +80,7 @@ class ResnetJigsaw(pl.LightningModule):
         images, labels = batch
         
         y_hat = self(images)
-        loss = self.loss(y_hat, labels.float())
+        loss = self.loss(y_hat, labels)
         
         self.log('train_loss', loss, on_step=True, on_epoch=True, logger=True)
         
@@ -171,7 +171,10 @@ class ResnetJigsawSR(ResnetJigsaw):
         num_ftrs = self.resnet.fc.in_features
         self.resnet.fc = torch.nn.Linear(num_ftrs, puzzle_size)
         self.soft_rank = SoftRank(length = puzzle_size, direction="ASCENDING")
-        self.loss = torch.nn.MSELoss(reduction='mean')
+        self.loss_ = torch.nn.MSELoss(reduction='mean')
+
+    def loss(self, y_hat, y):
+        return self.loss_(y_hat, y.float())
 
     def forward(self, x):
         x = super().forward(x)
