@@ -6,7 +6,7 @@ import torch.nn as nn
 import sys
 sys.path.append('.')
 from data.CTDataSet import jigsaw_training_collate
-#from models.soft_rank import SoftRank
+from models.soft_rank import SoftRank
 from fast_soft_sort.pytorch_ops import soft_rank
 
 # For permutation generation with maximal Hamming distance
@@ -172,12 +172,14 @@ class ResnetJigsawSR(ResnetJigsaw):
         num_ftrs = self.resnet.fc.in_features
         self.resnet.fc = torch.nn.Linear(num_ftrs, puzzle_size)
         self.loss_ = torch.nn.MSELoss(reduction='mean')
+        self.soft_rank = SoftRank(direction="ASCENDING")
 
     def loss(self, y_hat, y):
         return self.loss_(y_hat, y.float())
 
     def forward(self, x):
         x = super().forward(x)
-        x = soft_rank(x, regularization_strength=1.0)
+        #x = soft_rank(x.cpu().float(), regularization_strength=1.0)
+        #return x.to(self.device)
+        x = self.soft_rank(x)
         return x
-        
