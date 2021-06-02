@@ -17,7 +17,7 @@ pip3 install --upgrade pip
 # 1.6 CUDA 10.2+
 pip3 install torch torchvision
 
-pip3 install -U tqdm tensorboard segmentation-models-pytorch pytorch-lightning albumentations SimpleITK jupyterlab torchsummary unidecode
+pip3 install -U tqdm tensorboard segmentation-models-pytorch pytorch-lightning albumentations SimpleITK jupyterlab torchsummary unidecode torchsort
 
 pip3 install -U --no-deps Kornia
 
