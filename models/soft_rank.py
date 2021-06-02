@@ -2,8 +2,10 @@ import torch
 import pytorch_lightning as pl
 
 # From https://github.com/google-research/fast-soft-sort with modifications to PyTorch
+# Not used. Using module directly
 
-def _isotonic_l2(y, sol, device):
+
+def _isotonic_l2(y, device):
     """Solves an isotonic regression problem using PAV.
     Formally, it solves argmin_{v_1 >= ... >= v_n} 0.5 ||v - y||^2.
     Args:
@@ -14,6 +16,7 @@ def _isotonic_l2(y, sol, device):
     target = torch.arange(n, device=device)
     c = torch.ones(n, device=device)
     sums = torch.zeros(n, device=device)
+    sol = torch.zeros_like(y, device=device)
 
     # target describes a list of blocks.  At any time, if [i..j] (inclusive) is
     # an active block, then target[i] := j and target[j] := i.
@@ -60,6 +63,8 @@ def _isotonic_l2(y, sol, device):
         sol[i + 1 : k] = sol[i]
         i = k
 
+    return sol
+
 def isotonic_l2(input_s, device, input_w=None):
     """Solves an isotonic regression problem using PAV.
     Formally, it solves argmin_{v_1 >= ... >= v_n} 0.5 ||v - (s-w)||^2.
@@ -74,8 +79,8 @@ def isotonic_l2(input_s, device, input_w=None):
         input_w = torch.flip(theta_l, [0]) + 1
 
     input_w = input_w.type(input_s.dtype)
-    solution = torch.zeros_like(input_s, device=device)
-    _isotonic_l2(input_s - input_w, solution, device=device)
+    #solution = torch.zeros_like(input_s, device=device)
+    solution = _isotonic_l2(input_s - input_w, device=device)
     return solution
 
 def _inv_permutation(permutation, device):
