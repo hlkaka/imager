@@ -12,8 +12,8 @@ def _isotonic_l2(y, sol, device):
     """
     n = y.shape[0]
     target = torch.arange(n, device=device)
-    c = torch.arange(n, device=device)
-    sums = torch.arange(n, device=device)
+    c = torch.ones(n, device=device)
+    sums = torch.zeros(n, device=device)
 
     # target describes a list of blocks.  At any time, if [i..j] (inclusive) is
     # an active block, then target[i] := j and target[j] := i.
@@ -143,8 +143,6 @@ class SoftRank(pl.LightningModule):
             project = lambda x : projection(x * self.scale, input_w=self.input_w, device=self.device)
             return torch.stack([project(batch) for batch in input_theta])
 
-
-
 if __name__ == '__main__':
     sr = SoftRank(4)
 
@@ -155,7 +153,7 @@ if __name__ == '__main__':
 
     print(t)
 
-    answer = torch.stack([sr(row) for row in t])
+    answer = sr(t)
 
     print(answer)
 
