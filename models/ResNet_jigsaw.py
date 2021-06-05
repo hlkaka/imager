@@ -177,4 +177,4 @@ class ResnetJigsawSR(ResnetJigsaw):
 
     def forward(self, x):
         x = super().forward(x)
-        return torchsort.soft_sort(x, regularization_strength=1.0)
+        return torchsort.soft_sort(x.float(), regularization_strength=1.0) # soft_sort not implemented for half-precision
