@@ -141,8 +141,9 @@ def train_model(model, model_dir):
 
     tb_logger = pl_loggers.TensorBoardLogger('{}/logs/'.format(model_dir))
     if Constants.n_gpus != 0:
+        trainer = Trainer(gpus=Constants.n_gpus, callbacks=[cb1, cb2], accelerator='cuda', precision=16, logger = tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)   # works on newer lightning
         #trainer = Trainer(gpus=Constants.n_gpus, distributed_backend='ddp', logger = tb_logger, precision=16, default_root_dir=model_dir, max_epochs=n_epochs)
-        trainer = Trainer(gpus=Constants.n_gpus, callbacks=[cb1, cb2], plugins=DDPPlugin(find_unused_parameters=False), accelerator='ddp_spawn', precision=16, logger = tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
+        #trainer = Trainer(gpus=Constants.n_gpus, callbacks=[cb1, cb2], plugins=DDPPlugin(find_unused_parameters=False), accelerator='ddp_spawn', precision=16, logger = tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
         trainer = Trainer(gpus=0, default_root_dir=model_dir, callbacks=[cb1, cb2], logger = tb_logger, distributed_backend='ddp_spawn', max_epochs=n_epochs)
     
