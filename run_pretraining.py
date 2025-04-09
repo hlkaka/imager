@@ -4,8 +4,9 @@ Script to run the model
 import os
 import sys
 from pytorch_lightning import Trainer, loggers as pl_loggers
+#from lightning_fabric.utilities.seed import seed_everything
 from pytorch_lightning.utilities.seed import seed_everything
-from pytorch_lightning.plugins import DDPPlugin
+#from pytorch_lightning.plugins import DDPPlugin
 
 from torchvision import transforms
 from datetime import datetime
