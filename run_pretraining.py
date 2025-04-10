@@ -125,7 +125,7 @@ def train_model(model, model_dir):
     # Setup trainer
     tb_logger = pl_loggers.TensorBoardLogger('{}/logs/'.format(model_dir))
 
-    chkpt1 = ModelCheckpoint(save_last=True) 
+    chkpt1 = ModelCheckpoint(filename='last-{epoch}', save_last=True) 
     chkpt2 = ModelCheckpoint(every_n_train_steps=10000) # save every 10000 steps
 
     if Constants.n_gpus != 0:
