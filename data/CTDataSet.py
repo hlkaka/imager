@@ -26,7 +26,7 @@ class CTDicomSlicesMaskless(Dataset):
     LARGE_DS_DICOM_GLOB = '/*/*/*.dcm'
 
     def __init__(self, dcm_file_list :list, transform = None, preprocessing = None,
-                n_surrounding :int = 1, trim_edges :bool = False, resize_transform = None):
+                n_surrounding :int = 1, trim_edges :bool = False, resize_transform = None, same_img_all_channels = False):
         '''
         Initializes a new CTDicomSlices
 
@@ -48,6 +48,7 @@ class CTDicomSlicesMaskless(Dataset):
         self.n_surrounding = n_surrounding
         self.trim_edges = trim_edges
         self.resize_transform = resize_transform
+        self.same_img_all_channels = same_img_all_channels
 
     def get_n_slices(self, img_path :str, slice_n :int, surrounding :int):
         '''
@@ -61,22 +62,33 @@ class CTDicomSlicesMaskless(Dataset):
         imgs = []
         empties = [] # This will hold hypothetical slice number of images that don't exist
         
-        # +1 because range(start, stop) does not include stop 
-        for i in range(slice_n - surrounding, slice_n + surrounding + 1):
-            slice_path = "{}/{}.dcm".format(dicoms_dir, i)
+        if self.same_img_all_channels:
+            slice_path = "{}/{}.dcm".format(dicoms_dir, slice_n)
             if os.path.isfile(slice_path):
                 imgs.append(sitk.GetArrayFromImage(sitk.ReadImage(slice_path)))
-            else:
-                empties.append(i)
+        else:
+            # +1 because range(start, stop) does not include stop
+            for i in range(slice_n - surrounding, slice_n + surrounding + 1):
+                slice_path = "{}/{}.dcm".format(dicoms_dir, i)
+                if os.path.isfile(slice_path):
+                    imgs.append(sitk.GetArrayFromImage(sitk.ReadImage(slice_path)))
+                else:
+                    empties.append(i)
         
         # Order is important
         # In above loop, we go from lowest n slice to the highest
         # Here, we replicate the earliest available slice in beginning and the last available slice in end
-        for e in empties:
-            if e <= slice_n:
+        if self.same_img_all_channels:
+            for i in range(surrounding):
                 imgs.insert(0, imgs[0])
-            else:
                 imgs.insert(-1, imgs[-1])
+
+        else:
+            for e in empties:
+                if e <= slice_n:
+                    imgs.insert(0, imgs[0])
+                else:
+                    imgs.insert(-1, imgs[-1])
 
         return np.concatenate(imgs, axis=0)
 
@@ -184,7 +196,7 @@ class CTDicomSlices(CTDicomSlicesMaskless):
     '''
     def __init__(self, dcm_file_list :list, transform = None, img_and_mask_transform = None,
                 preprocessing = None, n_surrounding :int = 1,
-                trim_edges :bool = False, resize_transform = None, mask_is_255 = True):
+                trim_edges :bool = False, resize_transform = None, mask_is_255 = True, same_img_all_channels = False):
         '''
         Initializes a new CTDicomSlices
 
@@ -203,7 +215,7 @@ class CTDicomSlices(CTDicomSlicesMaskless):
                      if False, the mask pixel values are kept as is to get class values. I.e. foreground is 1,2,3 and background is 0.
         '''
         super().__init__(dcm_file_list, transform=transform, preprocessing=preprocessing,
-                         n_surrounding=n_surrounding, trim_edges=trim_edges, resize_transform=resize_transform)
+                         n_surrounding=n_surrounding, trim_edges=trim_edges, resize_transform=resize_transform, same_img_all_channels = same_img_all_channels)
 
         self.img_and_mask_transform = img_and_mask_transform
         self.mask_is_255 = mask_is_255
@@ -274,7 +286,7 @@ class CTDicomSlicesFelzenszwalb(CTDicomSlices):
     '''
     def __init__(self, dcm_file_list :list, transform = None, preprocessing = None, \
                 n_surrounding :int = 1, trim_edges :bool = False, resize_transform = None, \
-                super_pixels = None, felz_params :dict = None, felz_crop = False):
+                super_pixels = None, felz_params :dict = None, felz_crop = False, same_img_all_channels = False):
         '''
         Initializes a new CTDicomSlices
 
@@ -299,7 +311,7 @@ class CTDicomSlicesFelzenszwalb(CTDicomSlices):
 
         super().__init__(dcm_file_list, transform = transform, img_and_mask_transform = None,
                         preprocessing=preprocessing, n_surrounding=n_surrounding, trim_edges=trim_edges,
-                        resize_transform=resize_transform)
+                        resize_transform=resize_transform, same_img_all_channels = same_img_all_channels)
     
         if super_pixels is None:
             self.super_pixels = np.array([[5/16, 5/16], [5/16, 11/16], [5/16, 1/2], [11/16, 5/16], [11/16, 11/16]])
@@ -535,7 +547,7 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
                 trim_edges :bool = False, resize_transform = None, sqrt_n_jigsaw_pieces :int = 3,
                 min_img_size :int = 225, tile_size :int = 64,
                 return_tile_coords = False, n_shuffles_per_image = 36,
-                perm_path=None, num_perms = 1000):
+                perm_path=None, num_perms = 1000, same_img_all_channels = False):
 
         '''
         min_img_size: dimension of the grid from which tiles will be taken
@@ -551,7 +563,7 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
         assert min_img_size % sqrt_n_jigsaw_pieces == 0
 
         super().__init__(dcm_file_list, transform=transform, preprocessing=preprocessing,
-                        n_surrounding=0, trim_edges=trim_edges, resize_transform=resize_transform)
+                        n_surrounding=0, trim_edges=trim_edges, resize_transform=resize_transform, same_img_all_channels = same_img_all_channels)
         
         self.snjp = sqrt_n_jigsaw_pieces
         self.min_img_size = 225

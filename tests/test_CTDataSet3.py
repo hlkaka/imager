@@ -1,6 +1,4 @@
 import albumentations as A
-from albumentations.augmentations.transforms import CenterCrop
-from albumentations.core.composition import set_always_apply
 import torch
 import numpy as np
 from torch.utils.data import DataLoader
@@ -41,20 +39,34 @@ def show_dataset(ctds):
 def show_images(slices, mask, img_path, slice_n):
     fig = plt.figure(figsize=(15, 15))
 
-    ax = fig.add_subplot(1, 3, 1)
-    ax.imshow(slices, cmap='gray')
+    img0 = slices[:,:,0]
+    img1 = slices[:,:,1]
+    img2 = slices[:,:,2]
 
-    ax2 = fig.add_subplot(1, 3, 2)
-    ax2.imshow(slices, cmap='gray')
-    ax2.imshow(mask, cmap='jet', alpha=0.5)
+    img0 = np.repeat(img0[..., np.newaxis], 3, axis=2)
+    img1 = np.repeat(img1[..., np.newaxis], 3, axis=2)
+    img2 = np.repeat(img2[..., np.newaxis], 3, axis=2)
 
-    ax3 = fig.add_subplot(1, 3, 3)
-    ax3.imshow(mask, cmap='gray')
+    ax = fig.add_subplot(2, 3, 1)
+    ax.imshow(img0, cmap='gray')
+
+    ax2 = fig.add_subplot(2, 3, 2)
+    ax2.imshow(img1, cmap='gray')
+
+    ax3 = fig.add_subplot(2, 3, 3)
+    ax3.imshow(img2, cmap='gray')
+
+    ax4 = fig.add_subplot(2, 3, 4)
+    ax4.imshow(slices, cmap='gray')
+    ax4.imshow(mask, cmap='jet', alpha=0.5)
+
+    ax5 = fig.add_subplot(2, 3, 5)
+    ax5.imshow(mask, cmap='gray')
 
     fig.show()
 
 if __name__ == '__main__':
-    dataset = '/mnt/g/thesis/ct_only_cleaned_resized_mini/head-neck-radiomics'
+    dataset = '/home/hussam/imager/organized_dataset_2'
     #dataset = Constants.organized_dataset_2
     dcm_list = CTDicomSlices.generate_file_list(dataset)
         #dicom_glob='/*/*/*.dcm')
@@ -66,6 +78,6 @@ if __name__ == '__main__':
     #ctds = CTDicomSlices(dcm_list, preprocessing=prep, resize_transform=tsfm,
     #                n_surrounding=0)# , felz_crop=True)
     
-    ctds = CTDicomSlices(dcm_list, n_surrounding=0, mask_is_255=False)
+    ctds = CTDicomSlices(dcm_list, n_surrounding=1, mask_is_255=False, same_img_all_channels = True)
 
     show_dataset(ctds)
