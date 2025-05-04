@@ -103,6 +103,6 @@ class MinDimension():
 
         ratio = self.min_dimension / img_min_dim
         # order = 3 refers to bicubic
-        new_img = rescale(image, ratio, order=3, multichannel=True, preserve_range=True)
+        new_img = rescale(image, ratio, order=3, channel_axis=-1, preserve_range=True)
 
         return {'image': new_img}

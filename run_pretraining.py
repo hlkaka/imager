@@ -16,7 +16,7 @@ from data.CTDataSet import CTDicomSlices, CTDicomSlicesJigsaw, DatasetManager
 from data.CustomTransforms import Window, Imagify
 from models.ResNet_jigsaw import ResnetJigsaw, ResnetJigsawSR, ResnetJigsaw_Ennead
 from run_model import get_dl_workers
-from models.UNet_L import UNet_no_val
+from models.UNet_L import UNet
 
 from constants import Constants
 
@@ -38,7 +38,7 @@ params_file = "params.txt" # where to save params for this run
 
 backbone = 'resnet34'
 encoder_weights = 'imagenet' # or None
-loss = 'cross_entropy'
+loss = 'cross_entropy' # 'dice' for felz
 
 WL = 50
 WW = 200
@@ -81,15 +81,15 @@ def get_dataset(dataset, model_dir):
 
     prep = transforms.Compose([Window(WL, WW), Imagify(WL, WW)]) #, Normalize(mean, std)])
 
+    dsm = DatasetManager.generate_train_val_test(dataset, val_frac=0.05, test_frac=0, pretrain_ds=True)
+    if model_dir is not None:
+            dsm.save_lists(model_dir)
+
+    train_dicoms, val_dicoms, _ = dsm.get_dicoms()
+
     if pre_train == 'jigsaw' or pre_train == 'jigsaw_ennead' or pre_train == 'jigsaw_softrank':
         if pre_train == 'jigsaw_softrank':
             n_perms = None
-
-        dsm = DatasetManager.generate_train_val_test(dataset, val_frac=0.05, test_frac=0, pretrain_ds=True)
-        if model_dir is not None:
-            dsm.save_lists(model_dir)
-
-        train_dicoms, val_dicoms, _ = dsm.get_dicoms()
 
         datasets = {}
         datasets['train'] = CTDicomSlicesJigsaw(train_dicoms, preprocessing=prep, return_tile_coords=True,
@@ -101,13 +101,10 @@ def get_dataset(dataset, model_dir):
         return datasets
 
     elif pre_train == 'felz':
-        dcm_list = CTDicomSlicesJigsaw.generate_file_list(dataset,
-                dicom_glob='/*/*/dicoms/*.dcm')
-
-        # Felz masks were saved with foreground being 1,2,3,4 (instead of 255). mask_is_255 flag is CRITICAL
-        ctds = CTDicomSlices(dcm_list, preprocessing=prep, n_surrounding=in_channels // 2, mask_is_255=False)
+        datasets['train'] = CTDicomSlices(train_dicoms, preprocessing=prep, n_surrounding=in_channels // 2, mask_is_255=False)
+        datasets['val'] = CTDicomSlices(val_dicoms, preprocessing=prep, n_surrounding=in_channels // 2, mask_is_255=False)
         
-        return ctds
+        return datasets
 
     else:
         raise Exception('Invalid pre_train mode of "{}"'.format(pre_train))
@@ -155,8 +152,7 @@ def get_model(datasets, batch_size):
         summary(m, (9, 64, 64), device='cpu')
 
     elif pre_train == 'felz':
-        ds = {'train': datasets, 'val': None, 'test': None}
-        m = UNet_no_val(ds, backbone=backbone, batch_size=batch_size, loss=loss, lr=lr,
+        m = UNet(datasets, backbone=backbone, batch_size=batch_size, loss=loss, lr=lr,
                 in_channels=in_channels, dl_workers=get_dl_workers(), encoder_weights=encoder_weights,
                 classes = num_classes)
 
