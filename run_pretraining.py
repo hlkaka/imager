@@ -86,12 +86,12 @@ def get_dataset(dataset, model_dir):
             dsm.save_lists(model_dir)
 
     train_dicoms, val_dicoms, _ = dsm.get_dicoms()
+    datasets = {}
 
     if pre_train == 'jigsaw' or pre_train == 'jigsaw_ennead' or pre_train == 'jigsaw_softrank':
         if pre_train == 'jigsaw_softrank':
             n_perms = None
 
-        datasets = {}
         datasets['train'] = CTDicomSlicesJigsaw(train_dicoms, preprocessing=prep, return_tile_coords=True,
             perm_path=Constants.default_perms, n_shuffles_per_image=num_shuffles, num_perms=n_perms)
         
