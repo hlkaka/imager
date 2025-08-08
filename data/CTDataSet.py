@@ -314,7 +314,7 @@ class CTDicomSlicesFelzenszwalb(CTDicomSlices):
                         resize_transform=resize_transform, same_img_all_channels = same_img_all_channels)
     
         if super_pixels is None:
-            self.super_pixels = np.array([[5/16, 5/16], [5/16, 11/16], [5/16, 1/2], [11/16, 5/16], [11/16, 11/16]])
+            self.super_pixels = np.array([[5/16, 5/16], [5/16, 11/16], [1/2, 1/2], [11/16, 5/16], [11/16, 11/16]])
         else:
             self.super_pixels = super_pixels
 
@@ -666,7 +666,7 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
 
         tile_stds [tile_stds < 1e-1] = 1e-1
 
-        tiles = (tiles - tile_means[:,None,None]) / tile_stds[:,None,None]
+        #tiles = (tiles - tile_means[:,None,None]) / tile_stds[:,None,None]
         
         # shuffle tiles
         # return permutation index as label

@@ -14,7 +14,7 @@ from skimage.segmentation import felzenszwalb, chan_vese
 import sys
 sys.path.append('data/')
 
-from CTDataSet import CTDicomSlices
+from CTDataSet import CTDicomSlices, CTDicomSlicesFelzenszwalb
 from CustomTransforms import Window
 from CustomTransforms import Imagify
 from CustomTransforms import TorchFunctionalTransforms as TFT
@@ -84,7 +84,7 @@ def cpu_transforms(dcm_list) -> DataLoader:
             additional_targets={"image1": 'image', "mask1": 'mask'})
     #prep = get_preprocessing_fn('resnet34', pretrained='imagenet')
 
-    ctds = CTDicomSlices(dcm_list, shuffle=True, crop_bottom=None, resize_transform=resize_transform, preprocessing=prep, transform = img_trfm, n_surrounding=0, trim_edges=False, self_supervised_mask=True)
+    ctds = CTDicomSlicesFelzenszwalb(dcm_list, resize_transform=resize_transform, preprocessing=prep, transform = img_trfm, n_surrounding=0, trim_edges=False)
 
     dl = DataLoader(ctds, batch_size=1, num_workers = 0, shuffle=True)
 
@@ -186,7 +186,7 @@ use_gpu_transforms = False
 
 if __name__ == '__main__':
     only_positive = True
-    dataset = 'E:/thesis/ct_only_filtered_2/head-neck-pet-ct'
+    dataset = '/mnt/d/thesis/ct_only_filtered_2/head-neck-pet-ct'
     dcm_list = CTDicomSlices.generate_file_list(dataset, dicom_glob='*/*/*.dcm')
 
     if use_gpu_transforms:
