@@ -336,7 +336,7 @@ class CTDicomSlicesFelzenszwalb(CTDicomSlices):
 
         return (segments).astype("uint8") # convert to int mask
 
-    def get_mask(self, segments):
+    def get_mask(self, segments, single_foreground :bool = True):
         # Initial implementation is in test_CTDataSet in function get_felzenszwalb
         '''
         Returns a self suprevised mask of the given image.
@@ -354,7 +354,12 @@ class CTDicomSlicesFelzenszwalb(CTDicomSlices):
 
         mask = pre_mask[0].astype('uint8')
         for i in range(1, len(pre_mask)):
-            mask = np.maximum(mask, (i + 1) * pre_mask[i].astype('uint8'))
+            if single_foreground:
+                # generates a single segment
+                mask = np.maximum(mask, pre_mask[i].astype('uint8'))
+            else:
+                # generates 5 different segments
+                mask = np.maximum(mask, (i + 1) * pre_mask[i].astype('uint8'))
 
         return mask, selected_pixels # convert to int mask
 
