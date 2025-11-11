@@ -126,7 +126,7 @@ def train_model(model, model_dir):
     chkpt2 = ModelCheckpoint(every_n_train_steps=10000) # save every 10000 steps
 
     if Constants.n_gpus != 0:
-        trainer = Trainer(gpus=Constants.n_gpus, callbacks=[chkpt1, chkpt2], accelerator='ddp_spawn', plugins=DDPPlugin(find_unused_parameters=False), precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
+        trainer = Trainer(gpus=Constants.n_gpus, callbacks=[chkpt1, chkpt2], accelerator='cuda', precision=16, logger=tb_logger, default_root_dir=model_dir, max_epochs=n_epochs)
     else:
         trainer = Trainer(gpus=0, default_root_dir=model_dir, logger=tb_logger, callbacks=[chkpt1, chkpt2], max_epochs=n_epochs)
 

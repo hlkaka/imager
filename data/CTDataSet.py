@@ -473,7 +473,7 @@ class CTDicomSlicesFelzSaving(CTDicomSlicesFelzenszwalb):
     def __init__(self, dcm_file_list :list, transform = None, preprocessing = None, \
                 trim_edges :bool = False, resize_transform = None, \
                 super_pixels = None, felz_params :dict = None, felz_crop = False,
-                preprocess_output = False):
+                preprocess_output = False, single_foreground = True):
         '''
         Preprocess then segment then crop.
         The resultant image can skip pre_processing (i.e. skip windowing) if pre_process_output is False
@@ -487,6 +487,7 @@ class CTDicomSlicesFelzSaving(CTDicomSlicesFelzenszwalb):
                         super_pixels=super_pixels, felz_params=felz_params, felz_crop=felz_crop)
 
         self.preprocess_output = preprocess_output
+        self.single_foreground = single_foreground
 
     def image_with_metadata(self, img_path :str, slice_n :int):
         '''
@@ -536,7 +537,7 @@ class CTDicomSlicesFelzSaving(CTDicomSlicesFelzenszwalb):
 
         image_transformed = self.apply_all_transforms(image)   # Does 4
         segments = self.get_felzenszwalb(image_transformed, self.felz_params) # Does 5
-        mask, super_pixels = self.get_mask(segments) # Does 6
+        mask, super_pixels = self.get_mask(segments, single_foreground = self.single_foreground) # Does 6
 
         # Finally, get everything on image except prep
         image = self.apply_all_transforms(image, exclude_prep=True)
@@ -552,7 +553,7 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
                 trim_edges :bool = False, resize_transform = None, sqrt_n_jigsaw_pieces :int = 3,
                 min_img_size :int = 225, tile_size :int = 64,
                 return_tile_coords = False, n_shuffles_per_image = 36,
-                perm_path=None, num_perms = 1000, same_img_all_channels = False):
+                perm_path=None, num_perms = 1000, same_img_all_channels = False, tile_normalize = True):
 
         '''
         min_img_size: dimension of the grid from which tiles will be taken
@@ -575,6 +576,7 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
         self.tile_size = tile_size
         self.return_tile_coords = return_tile_coords
         self.n_shuffles_per_image = n_shuffles_per_image
+        self.tile_normalize = tile_normalize
 
         if num_perms is not None:
             self.load_permutations(perm_path, num = num_perms, replace = False)
@@ -593,7 +595,7 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
 
         return image
 
-    def pick_top_left_pixel(self, bg_size, fg_size :int):
+    def pick_tile_top_left_pixel(self, bg_size, fg_size :int):
         '''
         Uniformly samples a top-left pixel for the foreground from the given background
         Top left pixel needs to fall in the rectange between (0, 0) and (background_x - forground_x, background_y - foreground_y)
@@ -609,17 +611,38 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
         top_left_pixel = np.array([np.random.randint(0, high=top_left_rectangle[0]), np.random.randint(0, high=top_left_rectangle[1])])
 
         return top_left_pixel
+    
+    def pick_grid_top_left_pixel(self, bg_size, fg_size :int):
+        '''
+        Uniformly samples a top-left pixel for the foreground from the given background
+        Top left pixel needs to fall in the rectange between (0, 0) and (background_x - forground_x, background_y - foreground_y)
+        + 1 because randint does not include the upper bound
+        '''
+        # If bg_size is int, convert to 2-dimensional array
+        # No need to bother with fg_size, as numpy will take care of that as long as one is an array
+        if isinstance(bg_size, int) or (isinstance(bg_size, type(np.array)) and bg_size.shape == 1):
+            bg_size = np.array([bg_size, bg_size])
+        
+        top_left_rectangle = np.floor((bg_size - fg_size + 1) / 2)
+        
+        rectangle_half_size = 16   # magic number
+
+        top_left_pixel = np.array([np.random.randint(top_left_rectangle[0] - rectangle_half_size, high=top_left_rectangle[1] + rectangle_half_size),
+                                   np.random.randint(top_left_rectangle[0] - rectangle_half_size, high=top_left_rectangle[1] + rectangle_half_size)])
+
+        return top_left_pixel
+    
 
     def pick_puzzle_coords(self, image):
         '''
         Randomly selects a location of the puzzle crop from the image.
         '''
         dims = image.shape[0:2] 
-        top_left_pixel = self.pick_top_left_pixel(dims, self.min_img_size)
+        top_left_pixel = self.pick_grid_top_left_pixel(dims, self.min_img_size)
 
         return top_left_pixel
 
-    def get_tiles(self, image, top_left_pixel):
+    def get_tiles(self, image, grid_top_left_pixel):
         '''
         Gets an array of all the tiles in the puzzle
         (snjp x tile_size x tile_size)        
@@ -635,15 +658,17 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
 
         for i in range(self.snjp):
             for j in range(self.snjp):
-                grid_top_left = np.array([i * grid_stride, j * grid_stride]) + top_left_pixel
+                tile_top_left_main = np.array([i * grid_stride, j * grid_stride]) + grid_top_left_pixel
 
-                tile_top_left = self.pick_top_left_pixel(grid_stride, self.tile_size) + grid_top_left
+                tile_top_left = self.pick_tile_top_left_pixel(grid_stride, self.tile_size) + tile_top_left_main
                 tile_bottom_right = tile_top_left + self.tile_size
 
                 if self.return_tile_coords:
                     coords.append(tile_top_left)
 
                 tile_data = image[tile_top_left[0]:tile_bottom_right[0], tile_top_left[1]:tile_bottom_right[1]]
+
+                print("tile top left: {} -- tile bottom right: {}\n".format(tile_top_left, tile_bottom_right))
 
                 np.copyto(tiles[i * self.snjp + j], tile_data.squeeze())
 
@@ -654,7 +679,7 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
         image = self.ensure_min_size(image)
         dims = image.shape[0:2]
         
-        grid_top_left = self.pick_top_left_pixel(np.array(dims), self.min_img_size)
+        grid_top_left = self.pick_grid_top_left_pixel(np.array(dims), self.min_img_size)
         # coords is for debugging
         tiles, coords = self.get_tiles(image, grid_top_left)
 
@@ -669,9 +694,9 @@ class CTDicomSlicesJigsaw(CTDicomSlicesMaskless):
         tile_means = np.mean(tiles, axis=(1, 2))
         tile_stds = np.std(tiles, axis=(1, 2))
 
-        tile_stds [tile_stds < 1e-1] = 1e-1
-
-        #tiles = (tiles - tile_means[:,None,None]) / tile_stds[:,None,None]
+        if self.tile_normalize:
+            tile_stds [tile_stds < 1e-1] = 1e-1
+            tiles = (tiles - tile_means[:,None,None]) / tile_stds[:,None,None]
         
         # shuffle tiles
         # return permutation index as label

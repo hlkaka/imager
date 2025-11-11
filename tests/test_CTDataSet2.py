@@ -44,7 +44,7 @@ def show_jigsaw_training_dataset(ctds, predict=False):
 
     if predict:
         #chkpt = '/mnt/g/thesis/model_runs/pretrained_jigsaw_resnet34/logs/default/version_0/checkpoints/epoch=9-step=48689.ckpt' 
-        chkpt = '/mnt/e/HNSCC dataset/trained_models/pretrain-jigsaw-val-norm-1e-4/logs/default/version_0/checkpoints/last.ckpt'
+        chkpt = '/mnt/e/Desktop E/HNSCC dataset/trained_models/pretrain-jigsaw-val-norm-1e-4/logs/default/version_0/checkpoints/last.ckpt'
 
         model = ResnetJigsaw.load_from_checkpoint(chkpt, datasets= {'train': ctds}, map_location='cpu', in_channels=3, num_permutations=100)
         #model = ResnetJigsaw_Ennead.load_from_checkpoint(chkpt, datasets= {'train': ctds}, map_location='cpu', in_channels=3)

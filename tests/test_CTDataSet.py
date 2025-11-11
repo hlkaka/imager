@@ -120,7 +120,7 @@ use_gpu_transforms = False
 
 if __name__ == '__main__':
     only_positive = True
-    dataset = '/home/hussam/organized_dataset_2/'
+    dataset = '/home/hussam/imager/organized_dataset_2/'
     dcm_list = CTDicomSlices.generate_file_list(dataset)
 
     if use_gpu_transforms:
