@@ -24,3 +24,17 @@ wget https://hnscc-ds.nyc3.cdn.digitaloceanspaces.com/organized_dataset_2.zip
 echo "Unzipping downloaded dataset"
 
 unzip -q organized_dataset_2.zip
+
+
+# fix torchsort problems
+# pip install openrlhf[vllm,ring,liger]
+
+# 0) Optional: ensure a compiler toolchain (Linux)
+#sudo apt-get update && sudo apt-get install -y build-essential ninja-build
+
+# 1) Remove any old build/binary
+#pip uninstall -y torchsort
+#pip cache purge
+
+# 2) Force a source build against your current torch 2.6.0
+#pip install --no-binary=:all: --no-build-isolation --no-cache-dir torchsort
